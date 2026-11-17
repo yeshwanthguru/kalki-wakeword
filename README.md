@@ -6,6 +6,7 @@
 
 [![tests](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml/badge.svg)](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml)
 ![model size](https://img.shields.io/badge/model-232%20KB-0f7b5f)
+[![downloads](https://img.shields.io/github/downloads/yeshwanthguru/kalki-wakeword/total?label=downloads&color=0f7b5f)](https://github.com/yeshwanthguru/kalki-wakeword/releases)
 ![format](https://img.shields.io/badge/format-ONNX-5c6bc0)
 ![runs on](https://img.shields.io/badge/runs%20on-CPU%20%7C%20browser-0f7b5f)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
