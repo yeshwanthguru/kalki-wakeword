@@ -1,5 +1,7 @@
 # Hey Kalki: a tiny wake word model
 
+[![tests](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml/badge.svg)](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml)
+
 A **232 KB** "hey kalki" wake word detector that runs on a plain CPU, in a browser tab, or inside your own
 Python app. It was trained **entirely on synthetic speech**, so you do not need to record anyone to start,
 and you can retrain it for your own phrase.
@@ -10,8 +12,8 @@ through the model, or use your microphone. Nothing leaves your device.
 [![Browser demo](docs/demo.jpg)](https://yeshwanthguru.github.io/kalki-wakeword/)
 
 > **Status: early, and I want your feedback.** It works well on synthetic voices it has never seen, but it has
-> had little testing on real people and real microphones. If you try it, please tell me how it did (see
-> [Feedback](#feedback-wanted)).
+> had little testing on real people and real microphones. If you try it, please tell me how it did:
+> **[share your results in 1 minute](https://github.com/yeshwanthguru/kalki-wakeword/issues/new?template=feedback.yml)** (see [Feedback](#feedback-wanted)).
 
 ## Quick start
 
@@ -156,7 +158,7 @@ python train.py --steps 8000                 # your clips are shown 20x more oft
 
 ## Feedback wanted
 
-This is where I would most like help. Open an issue and tell me:
+This is where I would most like help. **[Open the feedback form](https://github.com/yeshwanthguru/kalki-wakeword/issues/new?template=feedback.yml)**; it asks for:
 
 - **How many of 10 "hey kalki" attempts it caught**, and how many false triggers in a few minutes of normal talking
 - Your **microphone or device**, accent, and room (quiet, TV, fan, café)
@@ -165,6 +167,16 @@ This is where I would most like help. Open an issue and tell me:
 
 Recordings are even better, but only share ones you are comfortable sharing. I will use the feedback to add
 real data and retrain.
+
+## Tests
+
+```bash
+pip install numpy onnxruntime soundfile pytest
+pytest
+```
+
+The tests check that all three model files fire on the three "hey kalki" sample clips and stay quiet on the other four,
+that the result does not depend on audio chunk size, and that silence never triggers. They run on every push.
 
 ## License
 

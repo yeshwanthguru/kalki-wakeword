@@ -1,0 +1,79 @@
+name: Try it and tell me how it went
+description: Share how the wake word did for you. Even "it worked fine" is useful.
+title: "Feedback: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying **Hey Kalki**. It was trained only on synthetic speech, so real-world results are exactly what I am missing.
+        A quick test: say "hey kalki" 10 times, then talk normally (or play a TV or podcast) for a few minutes.
+  - type: dropdown
+    id: how
+    attributes:
+      label: How did you test it?
+      options:
+        - Browser demo, with my microphone
+        - Browser demo, sample clips only
+        - live.py on my computer
+        - detector.py inside my own code
+        - Other (describe below)
+    validations:
+      required: true
+  - type: input
+    id: hits
+    attributes:
+      label: Out of 10 "hey kalki" attempts, how many did it catch?
+      placeholder: "e.g. 7"
+    validations:
+      required: true
+  - type: input
+    id: false_triggers
+    attributes:
+      label: False triggers while you talked or played audio normally
+      description: How many, and for roughly how many minutes?
+      placeholder: "e.g. 2 in 5 minutes of a podcast"
+    validations:
+      required: true
+  - type: input
+    id: threshold
+    attributes:
+      label: Threshold you used
+      description: The browser demo slider or --threshold. Default is 0.8.
+      placeholder: "0.8"
+  - type: input
+    id: device
+    attributes:
+      label: Microphone or device
+      description: Laptop mic, headset, phone, USB mic, browser and OS.
+      placeholder: "e.g. MacBook Air mic, Chrome on macOS"
+  - type: dropdown
+    id: room
+    attributes:
+      label: Where were you?
+      options:
+        - Quiet room
+        - Some background noise (fan, traffic, TV)
+        - Noisy place (cafe, street, open office)
+        - Mixed or not sure
+  - type: input
+    id: accent
+    attributes:
+      label: Your accent or first language (optional)
+      description: Only if you are comfortable sharing. It helps me see which voices need more data.
+      placeholder: "e.g. Indian English, Tamil first language"
+  - type: textarea
+    id: confused
+    attributes:
+      label: Words or sounds it confused with "hey kalki"
+      description: Things that triggered it by mistake, or ways of saying it that it missed.
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Ideas, use cases, bugs, what you would build with it.
+  - type: markdown
+    attributes:
+      value: |
+        **Audio is optional.** If you want to attach a short recording (for example `.wav` in a zip), only do it if you are happy for it to be public on this issue.
+        Please do not include other people's voices without their permission.
