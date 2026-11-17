@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hey Kalki Wake Word Demo</title>
+<style>
+  :root {
+    --bg: #fafaf8; --panel: #ffffff; --ink: #1c1c1a; --muted: #6b6b66; --line: #e3e3de;
+    --accent: #0f7b5f; --accent-ink: #ffffff; --bad: #b4412b; --trace: #0f7b5f; --warn-bg: #fff6e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121413; --panel: #1b1e1c; --ink: #ecece8; --muted: #9a9a93; --line: #2d312e;
+      --accent: #35c49b; --accent-ink: #0b1511; --bad: #f0846a; --trace: #35c49b; --warn-bg: #2a2516;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 56px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600;
+       text-transform: uppercase; letter-spacing: .06em; }
+  p.lead { margin: 0 0 24px; color: var(--muted); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+          padding: 18px; margin-bottom: 16px; }
+  #status { font-size: 14px; color: var(--muted); margin-bottom: 12px; }
+  .meter { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  #badge { flex: none; width: 128px; text-align: center; padding: 10px 0; border-radius: 10px;
+           border: 1px solid var(--line); color: var(--muted); font-weight: 700; letter-spacing: .04em;
+           transition: background .15s, color .15s; }
+  #badge.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #prob { font-size: 34px; font-variant-numeric: tabular-nums; font-weight: 650; min-width: 4.2ch; }
+  canvas { width: 100%; height: 120px; display: block; border-radius: 8px; background: var(--bg);
+           border: 1px solid var(--line); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+  label { font-size: 14px; color: var(--muted); }
+  input[type=range] { accent-color: var(--accent); width: 200px; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--ink); padding: 9px 14px; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 650; }
+  .clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .clip { text-align: left; display: flex; gap: 10px; align-items: center; }
+  .clip .play { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+                color: var(--accent-ink); display: grid; place-items: center; font-size: 12px; }
+  .clip b { display: block; font-weight: 600; }
+  .clip small { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .ok { color: var(--accent); font-weight: 650; } .no { color: var(--bad); font-weight: 650; }
+  .note { background: var(--warn-bg); border-radius: 10px; padding: 12px 14px; font-size: 14px; }
+  a { color: var(--accent); }
+  #log { font-size: 14px; color: var(--muted); margin-top: 10px; min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hey Kalki</h1>
+  <p class="lead">A 232&nbsp;KB wake word model running entirely in your browser. No audio leaves your device.</p>
+
+  <section class="card">
+    <div id="status">Loading model&hellip;</div>
+    <div class="meter">
+      <div id="badge">LISTENING</div>
+      <div id="prob">0.00</div>
+      <div style="color:var(--muted);font-size:14px">probability that "hey kalki" was just said</div>
+    </div>
+    <canvas id="trace" width="1400" height="240"></canvas>
+    <div class="row">
+      <label for="thr">Trigger threshold <b id="thrv">0.80</b></label>
+      <input id="thr" type="range" min="0.5" max="0.95" step="0.05" value="0.8">
+      <button id="mic" class="primary" disabled>Use my microphone</button>
+    </div>
+    <div id="log"></div>
+  </section>
+
+  <section class="card">
+    <h2>Play a sample</h2>
+    <div class="clips" id="clips"></div>
+    <div class="row"><button id="runall" disabled>Score all samples</button></div>
+    <table id="results" hidden>
+      <thead><tr><th>Sample</th><th>Should trigger?</th><th>Peak probability</th><th>Result</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="note">
+    The model was trained only on synthetic speech, and these samples are synthetic voices it never saw in training.
+    Your own voice may do better or worse. Try your microphone and adjust the threshold.
+    <a href="https://github.com/yeshwanthguru/kalki-wakeword">Code, training and benchmarks</a>.
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+<script>
+const SR = 16000, WIN = 24000, HOP = 1280, HITS = 2, COOLDOWN = 1.5, TRACE_LEN = 90;
+const CLIPS = [
+  { id: "hey-kalki-1", label: "Hey Kalki (voice 1)", yes: true },
+  { id: "hey-kalki-2", label: "Hey Kalki (voice 2)", yes: true },
+  { id: "hey-kalki-3", label: "Hey Kalki (voice 3)", yes: true },
+  { id: "hey-kali", label: "“hey kali”", yes: false },
+  { id: "hey-google", label: "“hey Google”", yes: false },
+  { id: "kalki-alone", label: "“kalki” alone", yes: false },
+  { id: "sentence", label: "A normal sentence", yes: false },
+];
+const $ = id => document.getElementById(id);
+let session = null, threshold = 0.8;
+let buf = new Float32Array(WIN), pending = [], pendingLen = 0, trace = [], streak = 0, lastWake = -1e9, clock = 0;
+let busy = Promise.resolve(), peak = 0, woke = false;
+
+const sigmoid = x => 1 / (1 + Math.exp(-x));
+
+async function score(window16k) {
+  const out = await session.run({ audio: new ort.Tensor("float32", window16k, [1, WIN]) });
+  return sigmoid(out.logit.data[0]);
+}
+
+// Feed 16 kHz samples; scores one window every 80 ms of audio. Returns once all queued windows are scored.
+function feed(samples, opts = {}) {
+  busy = busy.then(async () => {
+    pending.push(samples); pendingLen += samples.length;
+    while (pendingLen >= HOP) {
+      const chunk = new Float32Array(HOP); let n = 0;
+      while (n < HOP) {
+        const head = pending[0], take = Math.min(HOP - n, head.length);
+        chunk.set(head.subarray(0, take), n); n += take;
+        if (take === head.length) pending.shift(); else pending[0] = head.subarray(take);
+      }
+      pendingLen -= HOP;
+      buf.copyWithin(0, HOP); buf.set(chunk, WIN - HOP);
+      const p = await score(buf);
+      clock += HOP / SR;
+      streak = p > threshold ? streak + 1 : 0;
+      let fired = false;
+      if (streak >= HITS && clock - lastWake > COOLDOWN) { lastWake = clock; fired = true; woke = true; }
+      peak = Math.max(peak, p);
+      if (!opts.quiet) { trace.push(p); if (trace.length > TRACE_LEN) trace.shift(); ui(p, fired); }
+    }
+  });
+  return busy;
+}
+
+function resetStream() { buf = new Float32Array(WIN); pending = []; pendingLen = 0; streak = 0; lastWake = -1e9; clock = 0; peak = 0; woke = false; }
+
+function ui(p, fired) {
+  $("prob").textContent = p.toFixed(2);
+  if (fired) { flash(); $("log").textContent = "Wake word heard at " + new Date().toLocaleTimeString(); }
+  draw();
+}
+let flashT; function flash() {
+  const b = $("badge"); b.classList.add("on"); b.textContent = "HEY KALKI!";
+  clearTimeout(flashT); flashT = setTimeout(() => { b.classList.remove("on"); b.textContent = "LISTENING"; }, 1300);
+}
+function draw() {
+  const c = $("trace"), g = c.getContext("2d"), s = getComputedStyle(document.documentElement);
+  g.clearRect(0, 0, c.width, c.height);
+  const y = v => c.height - 8 - v * (c.height - 16);
+  g.strokeStyle = s.getPropertyValue("--line"); g.lineWidth = 2; g.setLineDash([8, 8]);
+  g.beginPath(); g.moveTo(0, y(threshold)); g.lineTo(c.width, y(threshold)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = s.getPropertyValue("--trace"); g.lineWidth = 4; g.lineJoin = "round"; g.beginPath();
+  trace.forEach((v, i) => { const x = (i / (TRACE_LEN - 1)) * c.width; i ? g.lineTo(x, y(v)) : g.moveTo(x, y(v)); });
+  g.stroke();
+}
+
+// ---- WAV samples
+async function loadClip(id) {
+  const ab = await (await fetch(`clips/${id}.wav`)).arrayBuffer();
+  const dv = new DataView(ab); let o = 12, data = null;
+  while (o < ab.byteLength - 8) {
+    const tag = String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3));
+    const size = dv.getUint32(o + 4, true);
+    if (tag === "data") { data = new Int16Array(ab.slice(o + 8, o + 8 + size)); break; }
+    o += 8 + size + (size & 1);
+  }
+  return Float32Array.from(data, v => v / 32768);
+}
+const cache = {};
+async function clip(id) { return cache[id] || (cache[id] = await loadClip(id)); }
+
+let ctx = null, playing = false;
+async function playClip(c) {
+  if (playing) return; playing = true;
+  document.querySelectorAll("button").forEach(b => b.disabled = true);
+  stopMic(true); resetStream(); trace = []; $("log").textContent = "";
+  const x = await clip(c.id);
+  ctx = ctx || new AudioContext();
+  await ctx.resume();
+  const ab = ctx.createBuffer(1, x.length, SR); ab.copyToChannel(x, 0);
+  const src = ctx.createBufferSource(); src.buffer = ab; src.connect(ctx.destination); src.start();
+  const t0 = performance.now(); let fedUpTo = 0;
+  while (fedUpTo < x.length) {
+    const target = Math.min(x.length, Math.floor(((performance.now() - t0) / 1000) * SR / HOP + 1) * HOP);
+    if (target > fedUpTo) { await feed(x.subarray(fedUpTo, target)); fedUpTo = target; }
+    await new Promise(r => setTimeout(r, 20));
+  }
+  await feed(new Float32Array(HOP * 3));
+  $("log").textContent = (woke ? "Heard it" : "No trigger") + ` — peak probability ${peak.toFixed(2)}`;
+  document.querySelectorAll("button").forEach(b => b.disabled = false);
+  playing = false;
+}
+
+async function scoreAll() {
+  const body = document.querySelector("#results tbody"); body.innerHTML = ""; $("results").hidden = false;
+  for (const c of CLIPS) {
+    resetStream(); const x = await clip(c.id);
+    await feed(x, { quiet: true }); await feed(new Float32Array(HOP * 3), { quiet: true });
+    const right = woke === c.yes;
+    body.insertAdjacentHTML("beforeend",
+      `<tr><td>${c.label}</td><td>${c.yes ? "yes" : "no"}</td><td>${peak.toFixed(2)}</td>` +
+      `<td class="${right ? "ok" : "no"}">${woke ? "triggered" : "quiet"} ${right ? "✓" : "✗"}</td></tr>`);
+  }
+  resetStream(); trace = []; draw();
+}
+
+// ---- microphone
+let micStream = null, micCtx = null, node = null, phase = 0, last = 0;
+async function startMic() {
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  micCtx = new AudioContext();
+  const code = `registerProcessor("tap", class extends AudioWorkletProcessor {
+    process(i) { if (i[0][0]) this.port.postMessage(i[0][0].slice()); return true; } });`;
+  await micCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
+  node = new AudioWorkletNode(micCtx, "tap");
+  const ratio = micCtx.sampleRate / SR; phase = 0; last = 0; resetStream(); trace = [];
+  node.port.onmessage = e => {
+    const x = e.data, out = []; // box-average down to 16 kHz
+    for (let i = 0; i < x.length; i++) {
+      phase += 1; last += x[i];
+      if (phase >= ratio) { out.push(last / phase); phase -= ratio; last = 0; }
+    }
+    if (out.length) feed(Float32Array.from(out));
+  };
+  micCtx.createMediaStreamSource(micStream).connect(node);
+  $("mic").textContent = "Stop microphone"; $("log").textContent = "Say “hey kalki”…";
+}
+function stopMic(silent) {
+  if (!micStream) return;
+  micStream.getTracks().forEach(t => t.stop()); micCtx.close(); micStream = micCtx = node = null;
+  $("mic").textContent = "Use my microphone"; if (!silent) $("log").textContent = "";
+}
+
+// ---- setup
+CLIPS.forEach(c => {
+  const b = document.createElement("button"); b.className = "clip"; b.disabled = true; b.dataset.clip = c.id;
+  b.innerHTML = `<span class="play">▶</span><span><b>${c.label}</b><small>${c.yes ? "should trigger" : "should stay quiet"}</small></span>`;
+  b.onclick = () => playClip(c); $("clips").appendChild(b);
+});
+$("thr").oninput = e => { threshold = +e.target.value; $("thrv").textContent = threshold.toFixed(2); draw(); };
+$("mic").onclick = async () => {
+  try { micStream ? stopMic() : await startMic(); }
+  catch (err) { $("log").textContent = "Microphone unavailable: " + err.message; }
+};
+$("runall").onclick = async () => { $("runall").disabled = true; await scoreAll(); $("runall").disabled = false; };
+
+(async () => {
+  try {
+    ort.env.wasm.numThreads = 1;
+    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
+    session = await ort.InferenceSession.create("kalki_int8.onnx?v=2", { executionProviders: ["wasm"] });
+    $("status").textContent = "Model ready. Play a sample or turn on your microphone.";
+    document.querySelectorAll("button").forEach(b => b.disabled = false);
+    draw();
+  } catch (e) { $("status").textContent = "Could not load the model: " + e.message; }
+})();
+window.kalki = { score, feed, resetStream, clip, scoreAll, get peak() { return peak; }, get woke() { return woke; } };
+</script>
+</body>
+</html>

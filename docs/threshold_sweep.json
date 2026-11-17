@@ -1,0 +1,32 @@
+[
+  {
+    "threshold": 0.5,
+    "detected": 0.9795918367346939,
+    "false_alarms_per_hour": 56.0
+  },
+  {
+    "threshold": 0.6,
+    "detected": 0.9795918367346939,
+    "false_alarms_per_hour": 44.0
+  },
+  {
+    "threshold": 0.7,
+    "detected": 0.9795918367346939,
+    "false_alarms_per_hour": 28.0
+  },
+  {
+    "threshold": 0.8,
+    "detected": 0.9591836734693877,
+    "false_alarms_per_hour": 28.0
+  },
+  {
+    "threshold": 0.9,
+    "detected": 0.9183673469387755,
+    "false_alarms_per_hour": 20.0
+  },
+  {
+    "threshold": 0.95,
+    "detected": 0.9183673469387755,
+    "false_alarms_per_hour": 8.0
+  }
+]

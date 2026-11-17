@@ -1,0 +1,11 @@
+numpy
+scipy
+soundfile
+sounddevice
+onnx
+onnxscript
+onnxruntime
+onnxconverter-common
+edge-tts
+matplotlib
+torch   # for GPU training install a CUDA build from https://pytorch.org

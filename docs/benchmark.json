@@ -1,0 +1,54 @@
+{
+  "mlp": {
+    "auc": 0.83518475,
+    "recall@0.5": 0.753,
+    "fpr@0.5": 0.2555,
+    "frr@1%far": 0.856,
+    "eer": 0.2525,
+    "params_k": 10.577,
+    "latency_ms": 0.6030540000210749,
+    "size_kb": 722.255859375,
+    "stream_detect@0.8": 0.1836734693877551,
+    "stream_fa_per_hour@0.8": 144.0,
+    "name": "MLP baseline"
+  },
+  "cnn": {
+    "auc": 0.98601925,
+    "recall@0.5": 0.8835,
+    "fpr@0.5": 0.039,
+    "frr@1%far": 0.2025,
+    "eer": 0.065,
+    "params_k": 33.249,
+    "latency_ms": 0.5817310000202269,
+    "size_kb": 815.904296875,
+    "stream_detect@0.8": 0.8571428571428571,
+    "stream_fa_per_hour@0.8": 12.0,
+    "name": "CNN, no GRU"
+  },
+  "kalki": {
+    "auc": 0.99642375,
+    "recall@0.5": 0.9315,
+    "fpr@0.5": 0.011,
+    "frr@1%far": 0.0715,
+    "eer": 0.0275,
+    "params_k": 55.105,
+    "latency_ms": 0.573474000011629,
+    "size_kb": 881.4658203125,
+    "stream_detect@0.8": 0.9387755102040817,
+    "stream_fa_per_hour@0.8": 4.0,
+    "name": "CNN+GRU (ours)"
+  },
+  "gru_large": {
+    "auc": 0.99577525,
+    "recall@0.5": 0.9325,
+    "fpr@0.5": 0.014,
+    "frr@1%far": 0.076,
+    "eer": 0.034,
+    "params_k": 199.217,
+    "latency_ms": 0.7640650000030291,
+    "size_kb": 1443.919921875,
+    "stream_detect@0.8": 0.9591836734693877,
+    "stream_fa_per_hour@0.8": 20.0,
+    "name": "CNN+GRU, 4x wider"
+  }
+}
