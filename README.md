@@ -144,8 +144,16 @@ regenerate, retrain. File names keep the `kalki` prefix.
 ```bash
 python record_real.py positive -n 40         # say the phrase 40 times
 python record_real.py negative --minutes 5   # normal talking, TV, fan, typing
-python train.py --steps 8000                 # your clips are shown 20x more often
+python score_real.py split                   # set some clips aside BEFORE training (moved to real_test/)
+python score_real.py score --model models/kalki_int8.onnx    # baseline on your held-out clips
+python train.py --steps 8000                 # your remaining clips are shown 20x more often
+python score_real.py score --model models/kalki_int8.onnx --model out/kalki.onnx   # before vs after
 ```
+
+`score_real.py` plays your held-out clips through the model exactly as `live.py` would hear them and reports how many
+wake words it caught (with a 95% interval, because 10 clips is a small sample) and the false alarms per hour on your
+negative recordings. It also lists which files were missed or fired falsely. Compare models on the same clips rather
+than treating one number as a final grade.
 
 ## Known limits
 
@@ -171,11 +179,11 @@ real data and retrain.
 ## Tests
 
 ```bash
-pip install numpy onnxruntime soundfile pytest
+pip install numpy scipy onnxruntime soundfile pytest
 pytest
 ```
 
-The tests check that all three model files fire on the three "hey kalki" sample clips and stay quiet on the other four,
+The tests also cover `score_real.py` (split, resampling, confidence interval). They check that all three model files fire on the three "hey kalki" sample clips and stay quiet on the other four,
 that the result does not depend on audio chunk size, and that silence never triggers. They run on every push.
 
 ## License

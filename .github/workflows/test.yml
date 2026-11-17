@@ -18,6 +18,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install inference dependencies
-        run: pip install numpy onnxruntime soundfile pytest
+        run: pip install numpy scipy onnxruntime soundfile pytest
       - name: Detector regression tests
         run: pytest -q
