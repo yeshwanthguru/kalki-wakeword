@@ -4,3 +4,4 @@ data/
 out/
 *.pt
 .venv/
+traffic_history/
