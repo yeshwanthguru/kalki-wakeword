@@ -81,11 +81,17 @@ number is stored. Accuracy is the same; size is not.
 
 ![Model sizes and accuracy](docs/model_sizes.png)
 
-| File | Precision | Size | vs. original | Wake words caught | AUC | CPU time / window | Pick it when |
-|------|-----------|-----:|-------------:|------------------:|----:|------------------:|--------------|
-| [`kalki_int8.onnx`](models/kalki_int8.onnx) | 8-bit weights | **232 KB** | **74% smaller** | 92.7% | 0.9930 | ~1.7 ms | download size matters (web pages, apps) **(default)** |
-| [`kalki_fp16.onnx`](models/kalki_fp16.onnx) | 16-bit floats | 444 KB | 50% smaller | 92.6% | 0.9930 | ~1.5 ms | you want smaller but with no rounding of weights |
-| [`kalki_fp32.onnx`](models/kalki_fp32.onnx) | 32-bit floats | 881 KB | the original | 92.6% | 0.9930 | ~1.7 ms | you want the exact trained numbers, or are retraining |
+| File | Precision | Size | Wake words caught | AUC | CPU / window |
+|------|-----------|-----:|------------------:|----:|-------------:|
+| [`kalki_int8.onnx`](models/kalki_int8.onnx) | 8-bit | **232 KB** (-74%) | 92.7% | 0.9930 | ~1.7 ms |
+| [`kalki_fp16.onnx`](models/kalki_fp16.onnx) | 16-bit | 444 KB (-50%) | 92.6% | 0.9930 | ~1.5 ms |
+| [`kalki_fp32.onnx`](models/kalki_fp32.onnx) | 32-bit | 881 KB (original) | 92.6% | 0.9930 | ~1.7 ms |
+
+**Which one?**
+
+- **`kalki_int8.onnx`** (default): when download size matters, such as web pages and apps. The browser demo loads this one.
+- **`kalki_fp16.onnx`**: smaller than the original, but with no rounding of the weights to integers.
+- **`kalki_fp32.onnx`**: the exact trained numbers; use it if you plan to retrain or convert it to another format.
 
 Accuracy is measured on the same 4,000-window held-out test set for all three. Speeds are one thread on a laptop CPU and
 vary with machine load, so treat them as "about the same", not as a ranking.
@@ -97,9 +103,9 @@ with fewer bits, which makes the file smaller. If the model is robust to a littl
 one is.
 
 ```
-fp32   ████████████████████████████████   32 bits per number     881 KB
-fp16   ████████████████                   16 bits per number     444 KB   (half)
-int8   ████████                            8 bits per number     232 KB   (about a quarter)
+fp32  ████████████████  32 bits per number   881 KB
+fp16  ████████          16 bits per number   444 KB
+int8  ████               8 bits per number   232 KB
 ```
 
 **How each file was made** (`quantize.py` rebuilds all three from the trained network):
