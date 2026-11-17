@@ -1,0 +1,28 @@
+name: Bug report
+description: Something in the code, demo or docs is broken.
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The command you ran, or the browser and steps for the demo.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "e.g. Windows 11, Python 3.12, onnxruntime 1.20"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      render: shell
