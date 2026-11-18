@@ -9,7 +9,6 @@ import io
 import random
 from pathlib import Path
 
-import edge_tts
 import numpy as np
 import soundfile as sf
 from scipy.signal import resample_poly
@@ -55,6 +54,7 @@ def phrase_variants(phrase):
 
 
 async def synth(text, voice, rate, pitch):
+    import edge_tts
     comm = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
     buf = bytearray()
     async for chunk in comm.stream():
@@ -94,6 +94,7 @@ async def worker(queue, sem, stats):
 
 
 async def main(args):
+    import edge_tts
     global POSITIVE, HARD_NEGATIVE
     if args.phrase:
         POSITIVE, HARD_NEGATIVE = phrase_variants(args.phrase)

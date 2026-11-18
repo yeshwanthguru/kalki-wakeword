@@ -17,7 +17,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from model import HOP, N_MELS, SR, WIN, LogMel, WakeNet
-from train import Sampler, load, place, voice_of
+from train import Sampler, heldout_voices, load, place, voice_of
 
 HERE = Path(__file__).parent
 OUT, DOCS = HERE / "out", HERE / "docs"
@@ -62,8 +62,7 @@ VARIANTS = {
 
 def splits():
     pos, neg = load("positive"), load("negative")
-    voices = sorted({voice_of(p) for p in pos} - {"real"})
-    held = set(random.Random(0).sample(voices, max(len(voices) // 8, 1)))
+    held = heldout_voices(pos)
     sp = lambda d, h: {p: v for p, v in d.items() if (voice_of(p) in held) == h}
     return sp(pos, False), sp(neg, False), sp(pos, True), sp(neg, True)
 

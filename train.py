@@ -4,6 +4,7 @@
 Outputs wakeword/out/kalki.pt and wakeword/out/kalki.onnx.
 """
 import argparse
+import copy
 import random
 from pathlib import Path
 
@@ -26,6 +27,14 @@ def load(sub):
 
 def voice_of(p):
     return p.stem.split("_")[1]
+
+
+def heldout_voices(pos):
+    """Voices kept out of training (1 in 8). Real recordings and second-TTS voices ('pp...') always train, so the
+    held-out set, and therefore every benchmark number, stays the same when more training voices are added."""
+    voices = sorted({voice_of(p) for p in pos} - {"real"})
+    voices = [v for v in voices if not v.startswith("pp")]
+    return set(random.Random(0).sample(voices, max(len(voices) // 8, 1)))
 
 
 def noise(n, rng):
@@ -123,6 +132,14 @@ class Sampler:
 
 
 @torch.no_grad()
+def update_ema(ema, model, decay):
+    for e, p in zip(ema.parameters(), model.parameters()):
+        e.lerp_(p, 1 - decay)
+    for e, b in zip(ema.buffers(), model.buffers()):   # BatchNorm statistics follow the live model
+        e.copy_(b)
+
+
+@torch.no_grad()
 def evaluate(model, sampler, device, n=1024, thr=0.5):
     model.eval()
     x, y = sampler.batch(n, device)
@@ -137,14 +154,16 @@ def main():
     ap.add_argument("--steps", type=int, default=6000)
     ap.add_argument("--batch", type=int, default=128)
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--specaugment", action="store_true", help="mask random mel bands / frames while training")
+    ap.add_argument("--ema", type=float, default=0.0, help="keep an exponential moving average of the weights (e.g. 0.999) and save that")
+    ap.add_argument("--label-smoothing", type=float, default=0.0, help="soften the 0/1 targets (e.g. 0.05)")
     ap.add_argument("--no-augment", action="store_true", help="only the original colored-noise backgrounds")
     ap.add_argument("--noise-dir", default=str(HERE / "data" / "noise"), help="real noise wavs (optional)")
     a = ap.parse_args()
 
     pos, neg = load("positive"), load("negative")
     assert pos, "no clips: run gen_tts.py first"
-    voices = sorted({voice_of(p) for p in pos} - {"real"})  # real recordings always train
-    held = set(random.Random(0).sample(voices, max(len(voices) // 8, 1)))
+    held = heldout_voices(pos)
     split = lambda d, h: {p: v for p, v in d.items() if (voice_of(p) in held) == h}
     bank = [] if a.no_augment else load_noise_bank(a.noise_dir)
     train_s = Sampler(split(pos, False), split(neg, False), 1, augment=not a.no_augment, noise_bank=bank)
@@ -153,19 +172,26 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = WakeNet().to(device)
+    model.spec_augment = a.specaugment
+    ema = copy.deepcopy(model) if a.ema > 0 else None
     print(sum(p.numel() for p in model.parameters()) / 1e3, "K params")
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=1e-2)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, a.lr, total_steps=a.steps)
 
     for step in range(1, a.steps + 1):
         x, y = train_s.batch(a.batch, device)
-        loss = F.binary_cross_entropy_with_logits(model(x), y)
+        target = y * (1 - a.label_smoothing) + a.label_smoothing / 2
+        loss = F.binary_cross_entropy_with_logits(model(x), target)
         opt.zero_grad(); loss.backward(); opt.step(); sched.step()
+        if ema is not None:
+            update_ema(ema, model, min(a.ema, (1 + step) / (10 + step)))   # warm-up so early steps are not dominated by init
         if step % 250 == 0:
-            rec, fpr = evaluate(model, val_s, device)
+            rec, fpr = evaluate(ema if ema is not None else model, val_s, device)
             print(f"step {step} loss {loss.item():.4f} | held-out recall {rec:.3f} false-pos {fpr:.3f}", flush=True)
 
     OUT.mkdir(exist_ok=True)
+    if ema is not None:
+        model = ema
     model.eval().cpu()
     torch.save(model.state_dict(), OUT / "kalki.pt")
     torch.onnx.export(model, torch.zeros(1, WIN), OUT / "kalki.onnx", input_names=["audio"],
