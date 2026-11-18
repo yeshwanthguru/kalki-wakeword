@@ -29,6 +29,20 @@ def voice_of(p):
     return p.stem.split("_")[1]
 
 
+def split_data(pos, neg):
+    """(train_pos, train_neg, heldout_pos, heldout_neg). With a published eval set (eval_set.py) the held-out data is that
+    frozen audio and its voices are excluded from training; otherwise 1 in 8 of the generated voices is held out."""
+    import eval_set
+    if eval_set.exists():
+        ev = eval_set.voices()
+        keep = lambda d: {p: v for p, v in d.items() if voice_of(p) not in ev}
+        vp, vn = eval_set.load_set()
+        return keep(pos), keep(neg), vp, vn
+    held = heldout_voices(pos)
+    sp = lambda d, h: {p: v for p, v in d.items() if (voice_of(p) in held) == h}
+    return sp(pos, False), sp(neg, False), sp(pos, True), sp(neg, True)
+
+
 def heldout_voices(pos):
     """Voices kept out of training (1 in 8). Real recordings and second-TTS voices ('pp...') always train, so the
     held-out set, and therefore every benchmark number, stays the same when more training voices are added."""
@@ -163,12 +177,12 @@ def main():
 
     pos, neg = load("positive"), load("negative")
     assert pos, "no clips: run gen_tts.py first"
-    held = heldout_voices(pos)
-    split = lambda d, h: {p: v for p, v in d.items() if (voice_of(p) in held) == h}
+    tp, tn, vp, vn = split_data(pos, neg)
+    held = sorted({voice_of(p) for p in vp})
     bank = [] if a.no_augment else load_noise_bank(a.noise_dir)
-    train_s = Sampler(split(pos, False), split(neg, False), 1, augment=not a.no_augment, noise_bank=bank)
-    val_s = Sampler(split(pos, True), split(neg, True), 2)
-    print(f"{len(pos)} pos / {len(neg)} neg clips, held-out voices: {sorted(held)}, real noise files: {len(bank)}")
+    train_s = Sampler(tp, tn, 1, augment=not a.no_augment, noise_bank=bank)
+    val_s = Sampler(vp, vn, 2)
+    print(f"{len(pos)} pos / {len(neg)} neg clips, held-out voices: {held}, real noise files: {len(bank)}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = WakeNet().to(device)

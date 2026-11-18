@@ -72,6 +72,10 @@ jobs:
           PHRASE: ${{ inputs.phrase }}
           PER_VOICE: ${{ inputs.per_voice }}
         run: python gen_tts.py --per-voice "$PER_VOICE" ${PHRASE:+--phrase "$PHRASE"}
+      - name: Fetch the frozen evaluation set (if published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python eval_set.py fetch
       - name: Second TTS source (Piper)
         if: inputs.piper_voices != ''
         env:

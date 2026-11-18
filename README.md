@@ -305,6 +305,12 @@ of the weights and save that) and `--label-smoothing 0.05`; none change the save
 `piper_voices`, `piper_speakers` and `train_args` inputs and ends with a "Retrain vs baseline" table in the run summary, so
 two runs that differ in one option can be compared directly. Check each Piper voice's licence before commercial use.
 
+**A frozen evaluation set.** Regenerating TTS clips changes the audio a little each time, which moved the PR gate by about
+8 false alarms per hour with identical models. Run the `eval-set` workflow once: it publishes the held-out voices' clips as the
+release `eval-set-v1`. From then on the PR gate, `release` and `retrain` download that set (`python eval_set.py fetch`) and score
+on exactly the same audio, and those voices are kept out of training. A baseline measured on a different set is not compared;
+the gate re-records it on the new set. Until a set is published everything works as before.
+
 ## 📁 Project layout
 
 ```
@@ -316,6 +322,7 @@ gen_tts.py         synthesize training clips      train.py          train the ne
 mine_negatives.py  find false triggers in real audio  augment.py    background-noise augmentation
 feedback_audio.py  score / install recordings from feedback issues
 gen_piper.py       second TTS source (Piper multi-speaker voices)
+eval_set.py        build / fetch the frozen evaluation set
 model.py           the network                    quantize.py       make the fp16 and int8 files
 benchmark.py       compare network designs        compare_versions.py   compare two trained versions
 tune_threshold.py  threshold trade-off            record_real.py / score_real.py   your own voice
