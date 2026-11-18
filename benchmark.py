@@ -142,13 +142,8 @@ def build_stream(vpos, vneg, minutes=15, seed=7):
     return np.clip(stream, -1, 1).astype(np.float32), ends
 
 
-@torch.no_grad()
-def stream_eval(model, stream, ends, thr=0.8, hits=2, hop=SR // 12):
-    model = model.to(DEV)
-    s = torch.from_numpy(stream)
-    starts = np.arange(0, len(stream) - WIN, hop)
-    p = np.concatenate([torch.sigmoid(model(torch.stack([s[i:i + WIN] for i in starts[j:j + 256]]).to(DEV))).cpu().numpy()
-                        for j in range(0, len(starts), 256)])
+def trigger_stats(p, starts, n_samples, ends, thr=0.8, hits=2):
+    """Turn per-window probabilities into (fraction of wake words caught, false alarms per hour)."""
     trig, streak, last = [], 0, -1e9
     for k, pk in enumerate(p):
         streak = streak + 1 if pk > thr else 0
@@ -160,7 +155,17 @@ def stream_eval(model, stream, ends, thr=0.8, hits=2, hop=SR // 12):
         m = [i for i, e in enumerate(ends) if e - 0.3 * SR <= tt <= e + 0.8 * SR]
         if m: found.add(m[0])
         else: fa += 1
-    return len(found) / max(len(ends), 1), fa / (len(stream) / SR / 3600)
+    return len(found) / max(len(ends), 1), fa / (n_samples / SR / 3600)
+
+
+@torch.no_grad()
+def stream_eval(model, stream, ends, thr=0.8, hits=2, hop=SR // 12):
+    model = model.to(DEV)
+    s = torch.from_numpy(stream)
+    starts = np.arange(0, len(stream) - WIN, hop)
+    p = np.concatenate([torch.sigmoid(model(torch.stack([s[i:i + WIN] for i in starts[j:j + 256]]).to(DEV))).cpu().numpy()
+                        for j in range(0, len(starts), 256)])
+    return trigger_stats(p, starts, len(stream), ends, thr, hits)
 
 
 def evaluate():

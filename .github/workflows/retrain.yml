@@ -1,0 +1,49 @@
+name: retrain
+
+on:
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: Training steps
+        default: "6000"
+      phrase:
+        description: Wake phrase (empty = built-in "hey kalki" data)
+        default: ""
+      per_voice:
+        description: Clips per voice per class for gen_tts.py
+        default: "12"
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies (CPU torch)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r <(grep -viE '^(torch|sounddevice)' requirements.txt)
+      # Synthesized clips are cached so reruns do not hit the (unofficial) edge-tts service again.
+      - name: Restore TTS clips
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: tts-${{ hashFiles('gen_tts.py') }}-${{ inputs.phrase }}-${{ inputs.per_voice }}
+      - name: Generate clips
+        run: python gen_tts.py --per-voice "${{ inputs.per_voice }}" ${{ inputs.phrase != '' && format('--phrase "{0}"', inputs.phrase) || '' }}
+      - name: Train
+        run: python train.py --steps "${{ inputs.steps }}"
+      - name: Quantize
+        run: python quantize.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kalki-onnx
+          path: |
+            models/kalki_fp32.onnx
+            models/kalki_fp16.onnx
+            models/kalki_int8.onnx
+          if-no-files-found: error
