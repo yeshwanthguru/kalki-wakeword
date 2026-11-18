@@ -1,0 +1,68 @@
+name: release
+
+# Push a tag like v0.3.0 (from a commit on main) to publish a GitHub Release with the model files,
+# checksums and the scores they were measured at. A release fails if the models regress vs docs/baseline.json.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag must be on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::tag $GITHUB_REF_NAME is not on main"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies (CPU torch)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r <(grep -viE '^(torch|sounddevice)' requirements.txt)
+      - name: Restore TTS clips
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: tts-${{ hashFiles('gen_tts.py') }}--12
+      - name: Generate clips (no-op when cached)
+        run: python gen_tts.py --per-voice 12
+      - name: Score the models
+        run: python ci_eval.py
+      - name: Build release notes and checksums
+        run: |
+          mkdir -p dist
+          cp models/kalki_int8.onnx models/kalki_fp16.onnx models/kalki_fp32.onnx dist/
+          (cd dist && sha256sum *.onnx > SHA256SUMS.txt)
+          {
+            echo "Wake word models for \`$GITHUB_REF_NAME\` (commit \`${GITHUB_SHA::7}\`)."
+            echo
+            echo "| file | size | use it for |"
+            echo "|---|---:|---|"
+            echo "| \`kalki_int8.onnx\` | $(( $(stat -c%s dist/kalki_int8.onnx) / 1024 )) KB | web pages and apps (default) |"
+            echo "| \`kalki_fp16.onnx\` | $(( $(stat -c%s dist/kalki_fp16.onnx) / 1024 )) KB | GPUs and mobile NPUs |"
+            echo "| \`kalki_fp32.onnx\` | $(( $(stat -c%s dist/kalki_fp32.onnx) / 1024 )) KB | reference |"
+            echo
+            echo "### Scores on held-out synthetic voices"
+            echo
+            cat ci_report.md
+            echo
+            echo "Demo: https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+            echo
+            echo "Verify downloads with \`sha256sum -c SHA256SUMS.txt\`."
+          } > RELEASE_NOTES.md
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --verify-tag

@@ -286,6 +286,10 @@ cheap-microphone coloring (band-limits, bit crush), on top of the colored noise.
 
 In the cloud, the `retrain` workflow does both (`mine_rounds`, `corpus_url`, `noise_url` inputs).
 
+**Releasing a version.** Push a tag from a commit on `main` (`git tag v0.3.0 && git push origin v0.3.0`). The `release`
+workflow re-scores the models, fails if they regress against `docs/baseline.json`, and publishes a GitHub Release with the
+three ONNX files, `SHA256SUMS.txt` and the score table.
+
 ## 📁 Project layout
 
 ```
