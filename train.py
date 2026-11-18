@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 from scipy.signal import fftconvolve
 
+from augment import background, load_noise_bank
 from model import SR, WIN, WakeNet
 
 HERE = Path(__file__).parent
@@ -74,17 +75,21 @@ def place(canvas, clip, end):
 
 
 class Sampler:
-    def __init__(self, pos, neg, seed):
+    def __init__(self, pos, neg, seed, augment=False, noise_bank=()):
         # Your own recordings (voice "real", see record_real.py) are rare, so show them more often.
         rep = lambda d, k: [a for p, a in d.items() for _ in range(k if voice_of(p) == "real" else 1)]
         self.pos, self.neg = rep(pos, 20), rep(neg, 5)
-        self.hard = [a for p, a in neg.items() if p.stem.startswith("hard")]
+        # hand-written near-misses and clips mined from real audio by mine_negatives.py
+        self.hard = [a for p, a in neg.items() if p.stem.startswith(("hard", "mined"))]
+        self.augment, self.noise_bank = augment, noise_bank
+        self.speech = [a for p, a in neg.items() if p.stem.startswith(("sent", "mined"))]
         self.rng = np.random.default_rng(seed)
 
     def one(self, positive):
         rng = self.rng
         x = np.zeros(WIN, np.float32)
-        bg = noise(WIN, rng) * 10 ** (rng.uniform(-45, -20) / 20)
+        bg = (background(WIN, rng, noise, self.noise_bank, self.speech) if self.augment else noise(WIN, rng)) \
+            * 10 ** (rng.uniform(-45, -20) / 20)
         # speech in the background
         if rng.random() < 0.4:
             for _ in range(rng.integers(1, 3)):
@@ -132,6 +137,8 @@ def main():
     ap.add_argument("--steps", type=int, default=6000)
     ap.add_argument("--batch", type=int, default=128)
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--no-augment", action="store_true", help="only the original colored-noise backgrounds")
+    ap.add_argument("--noise-dir", default=str(HERE / "data" / "noise"), help="real noise wavs (optional)")
     a = ap.parse_args()
 
     pos, neg = load("positive"), load("negative")
@@ -139,9 +146,10 @@ def main():
     voices = sorted({voice_of(p) for p in pos} - {"real"})  # real recordings always train
     held = set(random.Random(0).sample(voices, max(len(voices) // 8, 1)))
     split = lambda d, h: {p: v for p, v in d.items() if (voice_of(p) in held) == h}
-    train_s = Sampler(split(pos, False), split(neg, False), 1)
+    bank = [] if a.no_augment else load_noise_bank(a.noise_dir)
+    train_s = Sampler(split(pos, False), split(neg, False), 1, augment=not a.no_augment, noise_bank=bank)
     val_s = Sampler(split(pos, True), split(neg, True), 2)
-    print(f"{len(pos)} pos / {len(neg)} neg clips, held-out voices: {sorted(held)}")
+    print(f"{len(pos)} pos / {len(neg)} neg clips, held-out voices: {sorted(held)}, real noise files: {len(bank)}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = WakeNet().to(device)

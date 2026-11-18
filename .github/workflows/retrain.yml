@@ -12,6 +12,15 @@ on:
       per_voice:
         description: Clips per voice per class for gen_tts.py
         default: "12"
+      mine_rounds:
+        description: Hard-negative mining rounds (0 = off). Each round mines false triggers from the corpus, then retrains
+        default: "1"
+      corpus_url:
+        description: tar.gz of audio WITHOUT the wake word to mine (default LibriSpeech dev-clean, ~5 h, CC BY 4.0)
+        default: "https://www.openslr.org/resources/12/dev-clean.tar.gz"
+      noise_url:
+        description: Optional tar.gz or zip of real background-noise wavs for augmentation. Check the licence (ESC-50 is non-commercial, MUSAN is CC BY but 11 GB)
+        default: ""
 
 jobs:
   retrain:
@@ -34,11 +43,42 @@ jobs:
           path: data
           key: tts-${{ hashFiles('gen_tts.py') }}-${{ inputs.phrase }}-${{ inputs.per_voice }}
       - name: Generate clips
-        run: python gen_tts.py --per-voice "${{ inputs.per_voice }}" ${{ inputs.phrase != '' && format('--phrase "{0}"', inputs.phrase) || '' }}
-      - name: Train
-        run: python train.py --steps "${{ inputs.steps }}"
-      - name: Quantize
-        run: python quantize.py
+        env:
+          PHRASE: ${{ inputs.phrase }}
+          PER_VOICE: ${{ inputs.per_voice }}
+        run: python gen_tts.py --per-voice "$PER_VOICE" ${PHRASE:+--phrase "$PHRASE"}
+      - name: Drop mined clips and noise left in the cache
+        run: rm -rf data/noise data/negative/mined_*
+      - name: Fetch real noise for augmentation
+        if: inputs.noise_url != ''
+        env:
+          NOISE_URL: ${{ inputs.noise_url }}
+        run: |
+          mkdir -p data/noise noise_dl
+          curl -fL --retry 3 -o noise_dl/pack "$NOISE_URL"
+          (cd noise_dl && (tar xf pack 2>/dev/null || unzip -q pack))
+          find noise_dl -name '*.wav' -exec cp {} data/noise/ \;
+          ls data/noise | wc -l
+      - name: Fetch mining corpus
+        if: inputs.mine_rounds != '0'
+        env:
+          CORPUS_URL: ${{ inputs.corpus_url }}
+        run: |
+          mkdir -p corpus
+          curl -fL --retry 3 "$CORPUS_URL" | tar xz -C corpus
+          find corpus -type f \( -name '*.flac' -o -name '*.wav' \) | wc -l
+      - name: Train, quantize, mine hard negatives, repeat
+        env:
+          STEPS: ${{ inputs.steps }}
+          ROUNDS: ${{ inputs.mine_rounds }}
+        run: |
+          python train.py --steps "$STEPS"
+          python quantize.py
+          for r in $(seq 1 "$ROUNDS"); do
+            python mine_negatives.py --audio corpus --tag "r$r" --report "mining_r$r.json"
+            python train.py --steps "$STEPS"
+            python quantize.py
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: kalki-onnx
@@ -47,3 +87,9 @@ jobs:
             models/kalki_fp16.onnx
             models/kalki_int8.onnx
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mining-report
+          path: mining_r*.json
+          if-no-files-found: ignore
