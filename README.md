@@ -311,6 +311,11 @@ release `eval-set-v1`. From then on the PR gate, `release` and `retrain` downloa
 on exactly the same audio, and those voices are kept out of training. A baseline measured on a different set is not compared;
 the gate re-records it on the new set. Until a set is published everything works as before.
 
+**Faster training.** Most of a training step is building the augmented audio batch on the CPU, not the 55k-parameter network.
+`train.py` now builds batches in worker processes while the network trains (`--workers N`, default automatic, `0` = old
+behaviour). Measured on a 4-core CPU: 32 min for 6000 steps down to about 13 min (2 workers + 2 training threads); on a GPU
+the workers get nearly all the cores and the network step is the small part, so a GPU alone saves at most about a quarter.
+
 ## 📁 Project layout
 
 ```
