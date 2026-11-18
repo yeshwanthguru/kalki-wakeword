@@ -45,6 +45,15 @@ SENTENCES = [
 ]
 
 
+def phrase_variants(phrase):
+    """Positives and near-miss negatives for a custom phrase (the built-in lists are 'hey kalki' specific)."""
+    words = phrase.split()
+    pos = [phrase, phrase.title(), phrase + ".", phrase.title() + "!", ", ".join([words[0], " ".join(words[1:])]) if len(words) > 1 else phrase]
+    neg = list(dict.fromkeys(words + [" ".join(words[:-1]), " ".join(words[1:])]))  # partial phrases
+    neg = [n for n in neg if n and n != phrase] + ["hey google", "ok google", "hey siri", "hey alexa", "hey there", "hello"]
+    return pos, neg
+
+
 async def synth(text, voice, rate, pitch):
     comm = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
     buf = bytearray()
@@ -85,6 +94,9 @@ async def worker(queue, sem, stats):
 
 
 async def main(args):
+    global POSITIVE, HARD_NEGATIVE
+    if args.phrase:
+        POSITIVE, HARD_NEGATIVE = phrase_variants(args.phrase)
     voices = [v for v in await edge_tts.list_voices() if v["Locale"].startswith("en-")]
     # Indian English first-class: the name is Indian, so is likely accent of the speaker.
     voices = [v["ShortName"] for v in voices]
@@ -124,4 +136,5 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--per-voice", type=int, default=12)
     ap.add_argument("--concurrency", type=int, default=8)
+    ap.add_argument("--phrase", help="custom wake phrase; replaces the built-in 'hey kalki' positives and near-miss negatives")
     asyncio.run(main(ap.parse_args()))

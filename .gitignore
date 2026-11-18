@@ -5,3 +5,4 @@ out/
 *.pt
 .venv/
 traffic_history/
+ci_report.*

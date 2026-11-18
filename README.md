@@ -269,6 +269,27 @@ python score_real.py score --model models/kalki_int8.onnx --model out/kalki.onnx
 words it caught (with a 95% interval, because 10 clips is a small sample) and the false alarms per hour on your negative
 recordings. It also lists which files were missed or fired falsely.
 
+**Fewer false alarms: mine hard negatives.** The model only hears synthetic speech, so real audio can trigger it in ways the
+training set never covered. `mine_negatives.py` scans audio that does *not* contain the wake word (podcasts, TV, LibriSpeech,
+room noise), saves every false trigger to `data/negative/mined_<round>_<n>.wav` and reports false alarms per hour of real audio.
+`train.py` treats those clips as hard negatives, so retrain and mine again:
+
+```bash
+python mine_negatives.py --audio path/to/speech_without_the_wake_word --tag r1
+python train.py --steps 6000 && python quantize.py
+python mine_negatives.py --audio path/to/speech_without_the_wake_word --tag r2   # should find fewer
+```
+
+**Noise augmentation.** Training backgrounds now include impulsive sounds (clicks, knocks), babble made of other speech, and
+cheap-microphone coloring (band-limits, bit crush), on top of the colored noise. Drop real noise recordings into `data/noise/`
+(any wavs) and they are mixed in too. `python train.py --no-augment` restores the old backgrounds for comparison.
+
+In the cloud, the `retrain` workflow does both (`mine_rounds`, `corpus_url`, `noise_url` inputs).
+
+**Releasing a version.** Push a tag from a commit on `main` (`git tag v0.3.0 && git push origin v0.3.0`). The `release`
+workflow re-scores the models, fails if they regress against `docs/baseline.json`, and publishes a GitHub Release with the
+three ONNX files, `SHA256SUMS.txt` and the score table.
+
 ## 📁 Project layout
 
 ```
@@ -277,6 +298,7 @@ detector.py        streaming detector to drop into your app
 live.py            microphone demo for the terminal
 docs/              browser demo (index.html), sample clips, charts, raw benchmark numbers
 gen_tts.py         synthesize training clips      train.py          train the network
+mine_negatives.py  find false triggers in real audio  augment.py    background-noise augmentation
 model.py           the network                    quantize.py       make the fp16 and int8 files
 benchmark.py       compare network designs        compare_versions.py   compare two trained versions
 tune_threshold.py  threshold trade-off            record_real.py / score_real.py   your own voice
