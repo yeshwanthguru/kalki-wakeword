@@ -5,7 +5,7 @@ on:
     paths: ["*.py", "models/**", "docs/baseline.json", "requirements.txt", ".github/workflows/regression.yml"]
 
 permissions:
-  contents: read
+  contents: write   # only used to commit docs/baseline.json when it is missing
   pull-requests: write
 
 jobs:
@@ -14,6 +14,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -33,6 +36,18 @@ jobs:
         id: gate
         run: python ci_eval.py
         continue-on-error: true
+      # First run only: no baseline yet, so record this PR's scores as the baseline (same-repo PRs).
+      - name: Bootstrap docs/baseline.json
+        if: hashFiles('docs/baseline.json') == '' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('ci_report.json') != ''
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          cp ci_report.json docs/baseline.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/baseline.json
+          git commit -m "Record regression baseline from CI"
+          git push origin "HEAD:refs/heads/$HEAD_REF"
       - name: Comment on PR
         if: github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v7
