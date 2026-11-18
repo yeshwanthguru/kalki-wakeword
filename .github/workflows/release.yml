@@ -36,6 +36,10 @@ jobs:
           key: tts-${{ hashFiles('gen_tts.py') }}--12
       - name: Generate clips (no-op when cached)
         run: python gen_tts.py --per-voice 12
+      - name: Fetch the frozen evaluation set (if published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python eval_set.py fetch
       - name: Score the models
         run: python ci_eval.py
       - name: Build release notes and checksums

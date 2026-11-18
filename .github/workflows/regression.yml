@@ -32,13 +32,17 @@ jobs:
           key: tts-${{ hashFiles('gen_tts.py') }}--12
       - name: Generate clips (no-op when cached)
         run: python gen_tts.py --per-voice 12
+      - name: Fetch the frozen evaluation set (if published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python eval_set.py fetch
       - name: Score committed models vs baseline
         id: gate
         run: python ci_eval.py
         continue-on-error: true
-      # First run only: no baseline yet, so record this PR's scores as the baseline (same-repo PRs).
+      # No baseline yet, or it was measured on a different evaluation set: record this PR's scores as the baseline (same-repo PRs).
       - name: Bootstrap docs/baseline.json
-        if: hashFiles('docs/baseline.json') == '' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('ci_report.json') != ''
+        if: (hashFiles('docs/baseline.json') == '' || hashFiles('ci_baseline_stale') != '') && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('ci_report.json') != ''
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
