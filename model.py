@@ -47,6 +47,19 @@ class LogMel(nn.Module):
         return torch.log(mel + 1e-6)
 
 
+def spec_augment(x, max_time=12, max_freq=6):
+    """SpecAugment: zero (= the mean, after normalisation) one random band of mel channels and one of frames per example."""
+    B, F_, T = x.shape
+
+    def band(n, width, shape):
+        w = torch.randint(0, width + 1, (B, 1, 1), device=x.device)
+        s = (torch.rand(B, 1, 1, device=x.device) * (n - w + 1)).long()
+        i = torch.arange(n, device=x.device).view(shape)
+        return (i >= s) & (i < s + w)
+
+    return x.masked_fill(band(F_, max_freq, (1, -1, 1)) | band(T, max_time, (1, 1, -1)), 0.0)
+
+
 class WakeNet(nn.Module):
     def __init__(self, ch=48, hidden=64):
         super().__init__()
@@ -56,9 +69,12 @@ class WakeNet(nn.Module):
         self.conv = nn.Sequential(block(N_MELS, ch), nn.MaxPool1d(2), block(ch, ch), nn.MaxPool1d(2), block(ch, ch))
         self.gru = nn.GRU(ch, hidden, batch_first=True)
         self.head = nn.Linear(hidden, 1)
+        self.spec_augment = False   # training only (train.py --specaugment); ignored in eval mode, so exports are unchanged
 
     def forward(self, wav):
         x = self.norm(self.mel(wav))
+        if self.training and self.spec_augment:
+            x = spec_augment(x)
         x = self.conv(x).transpose(1, 2)          # (B, frames/4, ch)
         _, h = self.gru(x)
         return self.head(h[-1]).squeeze(-1)       # logits; apply sigmoid for probability

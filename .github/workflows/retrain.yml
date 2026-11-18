@@ -12,6 +12,15 @@ on:
       per_voice:
         description: Clips per voice per class for gen_tts.py
         default: "12"
+      piper_voices:
+        description: "Space-separated Piper model names for a second TTS source (empty = off). Check each voice's licence. e.g. en_GB-vctk-medium en_US-libritts_r-medium"
+        default: ""
+      piper_speakers:
+        description: Speakers to use per multi-speaker Piper model
+        default: "30"
+      train_args:
+        description: "Extra train.py flags, e.g. --specaugment --ema 0.999 --label-smoothing 0.05 (empty = defaults)"
+        default: ""
       mine_rounds:
         description: Hard-negative mining rounds (0 = off). Each round mines false triggers from the corpus, then retrains
         default: "1"
@@ -40,16 +49,40 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r <(grep -viE '^(torch|sounddevice)' requirements.txt)
       # Synthesized clips are cached so reruns do not hit the (unofficial) edge-tts service again.
+      # Cache keys cannot contain commas or spaces, so build a clean one from the inputs.
+      - name: Cache key
+        id: key
+        env:
+          PHRASE: ${{ inputs.phrase }}
+          PER_VOICE: ${{ inputs.per_voice }}
+          PIPER: ${{ inputs.piper_voices }}
+          SPEAKERS: ${{ inputs.piper_speakers }}
+        run: |
+          clean() { printf '%s' "$1" | tr -c 'A-Za-z0-9.-' '_'; }
+          k="$(clean "$PHRASE")-$PER_VOICE"
+          [ -n "$PIPER" ] && k="$k-piper-$(clean "$PIPER")-$SPEAKERS"
+          echo "k=$k" >> "$GITHUB_OUTPUT"
       - name: Restore TTS clips
         uses: actions/cache@v4
         with:
           path: data
-          key: tts-${{ hashFiles('gen_tts.py') }}-${{ inputs.phrase }}-${{ inputs.per_voice }}
+          key: tts-${{ hashFiles('gen_tts.py', 'gen_piper.py') }}-${{ steps.key.outputs.k }}
       - name: Generate clips
         env:
           PHRASE: ${{ inputs.phrase }}
           PER_VOICE: ${{ inputs.per_voice }}
         run: python gen_tts.py --per-voice "$PER_VOICE" ${PHRASE:+--phrase "$PHRASE"}
+      - name: Second TTS source (Piper)
+        if: inputs.piper_voices != ''
+        env:
+          PIPER: ${{ inputs.piper_voices }}
+          SPEAKERS: ${{ inputs.piper_speakers }}
+          PER_VOICE: ${{ inputs.per_voice }}
+          PHRASE: ${{ inputs.phrase }}
+        run: |
+          pip install piper-tts
+          python -m piper.download_voices --download-dir piper_models $PIPER
+          python gen_piper.py --models-dir piper_models --voices $PIPER --speakers "$SPEAKERS" --per-voice "$PER_VOICE" ${PHRASE:+--phrase "$PHRASE"}
       - name: Drop mined clips and noise left in the cache
         run: rm -rf data/noise data/negative/mined_* data/positive/pos_real_* data/negative/neg_real_*
       - name: Fetch real recordings
@@ -81,14 +114,21 @@ jobs:
         env:
           STEPS: ${{ inputs.steps }}
           ROUNDS: ${{ inputs.mine_rounds }}
+          EXTRA: ${{ inputs.train_args }}
         run: |
-          python train.py --steps "$STEPS"
+          TRAIN_ARGS="--steps $STEPS $EXTRA"
+          python train.py $TRAIN_ARGS
           python quantize.py
           for r in $(seq 1 "$ROUNDS"); do
             python mine_negatives.py --audio corpus --tag "r$r" --report "mining_r$r.json"
-            python train.py --steps "$STEPS"
+            python train.py $TRAIN_ARGS
             python quantize.py
           done
+      # Score the new models on the same held-out voices as the PR gate, next to the committed baseline.
+      - name: Compare with baseline
+        run: |
+          python ci_eval.py || true
+          { echo "### Retrain vs baseline"; echo; cat ci_report.md; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: kalki-onnx

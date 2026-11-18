@@ -298,6 +298,13 @@ collected into a zip (`positive/` and `negative/` folders) and fed to the `retra
 installed locally with `python feedback_audio.py install --zip clips.zip`. Real clips train 20x (wake words) and 5x
 (negatives) more often than synthetic ones.
 
+**A second voice source and training options (for A/B runs).** `gen_piper.py` adds multi-speaker Piper voices (offline, open
+models) to the training set; their clips are named `pp...` and are never held out, so benchmark numbers stay comparable with
+edge-tts-only runs. `train.py` has opt-in `--specaugment` (mask mel bands and frames), `--ema 0.999` (train a moving average
+of the weights and save that) and `--label-smoothing 0.05`; none change the saved model's format. The `retrain` workflow takes
+`piper_voices`, `piper_speakers` and `train_args` inputs and ends with a "Retrain vs baseline" table in the run summary, so
+two runs that differ in one option can be compared directly. Check each Piper voice's licence before commercial use.
+
 ## 📁 Project layout
 
 ```
@@ -308,6 +315,7 @@ docs/              browser demo (index.html), sample clips, charts, raw benchmar
 gen_tts.py         synthesize training clips      train.py          train the network
 mine_negatives.py  find false triggers in real audio  augment.py    background-noise augmentation
 feedback_audio.py  score / install recordings from feedback issues
+gen_piper.py       second TTS source (Piper multi-speaker voices)
 model.py           the network                    quantize.py       make the fp16 and int8 files
 benchmark.py       compare network designs        compare_versions.py   compare two trained versions
 tune_threshold.py  threshold trade-off            record_real.py / score_real.py   your own voice
