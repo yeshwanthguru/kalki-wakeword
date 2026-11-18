@@ -18,6 +18,9 @@ on:
       corpus_url:
         description: tar.gz of audio WITHOUT the wake word to mine (default LibriSpeech dev-clean, ~5 h, CC BY 4.0)
         default: "https://www.openslr.org/resources/12/dev-clean.tar.gz"
+      real_clips_url:
+        description: Optional zip of consented real recordings (positive/ and negative/ folders) to train on, 20x weight
+        default: ""
       noise_url:
         description: Optional tar.gz or zip of real background-noise wavs for augmentation. Check the licence (ESC-50 is non-commercial, MUSAN is CC BY but 11 GB)
         default: ""
@@ -48,7 +51,14 @@ jobs:
           PER_VOICE: ${{ inputs.per_voice }}
         run: python gen_tts.py --per-voice "$PER_VOICE" ${PHRASE:+--phrase "$PHRASE"}
       - name: Drop mined clips and noise left in the cache
-        run: rm -rf data/noise data/negative/mined_*
+        run: rm -rf data/noise data/negative/mined_* data/positive/pos_real_* data/negative/neg_real_*
+      - name: Fetch real recordings
+        if: inputs.real_clips_url != ''
+        env:
+          REAL_URL: ${{ inputs.real_clips_url }}
+        run: |
+          curl -fL --retry 3 -o real_clips.zip "$REAL_URL"
+          python feedback_audio.py install --zip real_clips.zip
       - name: Fetch real noise for augmentation
         if: inputs.noise_url != ''
         env:

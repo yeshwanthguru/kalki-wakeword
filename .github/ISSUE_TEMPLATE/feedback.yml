@@ -72,8 +72,30 @@ body:
     attributes:
       label: Anything else
       description: Ideas, use cases, bugs, what you would build with it.
+  - type: dropdown
+    id: audio_kind
+    attributes:
+      label: What is in the audio
+      description: Only if you attach recordings below. The maintainer can then score them and reply with the results.
+      options:
+        - Me saying "hey kalki" (wake word clips)
+        - Everyday audio without the wake word (talking, TV, noise)
+        - A mix (name files pos_*.wav and neg_*.wav, or use positive/ and negative/ folders in a zip)
+        - No audio attached
+      default: 3
+  - type: textarea
+    id: audio
+    attributes:
+      label: Audio (optional)
+      description: Drag in `.wav`, `.flac` or `.ogg` files, or one `.zip`. Short clips are best (under a few minutes each, 25 MB per file).
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Using your recordings
+      options:
+        - label: I am happy for these recordings to be used to train and test the model and kept in the project's dataset.
   - type: markdown
     attributes:
       value: |
-        **Audio is optional.** If you want to attach a short recording (for example `.wav` in a zip), only do it if you are happy for it to be public on this issue.
-        Please do not include other people's voices without their permission.
+        **Audio is optional and public.** Anything you attach is visible to everyone on this issue, so only share it if you are happy with that.
+        Please do not include other people's voices without their permission. Scoring does not store the audio anywhere else.
