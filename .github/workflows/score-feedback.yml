@@ -1,0 +1,44 @@
+name: score-feedback
+
+# A maintainer adds the "score-audio" label to a feedback issue that has recordings attached.
+# The attachments are scored with the committed model and the numbers are posted as a comment.
+# Only the default branch's code runs; the attachments are data (decoded, never executed), and nothing is stored.
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  score:
+    if: github.event.label.name == 'score-audio'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install inference dependencies
+        run: pip install numpy scipy onnxruntime soundfile
+      - name: Score the attached recordings
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          printf '%s' "$ISSUE_BODY" > "$RUNNER_TEMP/issue.md"
+          python feedback_audio.py score --body "$RUNNER_TEMP/issue.md" --out "$RUNNER_TEMP/comment.md"
+      - name: Post the results and clear the label
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const f = process.env.RUNNER_TEMP + '/comment.md';
+            const {owner, repo} = context.repo, issue_number = context.issue.number;
+            const body = fs.existsSync(f) ? fs.readFileSync(f, 'utf8')
+              : 'Scoring failed before producing results; see the workflow run for details.';
+            await github.rest.issues.createComment({owner, repo, issue_number, body});
+            await github.rest.issues.removeLabel({owner, repo, issue_number, name: 'score-audio'}).catch(() => {});

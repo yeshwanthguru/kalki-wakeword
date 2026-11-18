@@ -290,6 +290,14 @@ In the cloud, the `retrain` workflow does both (`mine_rounds`, `corpus_url`, `no
 workflow re-scores the models, fails if they regress against `docs/baseline.json`, and publishes a GitHub Release with the
 three ONNX files, `SHA256SUMS.txt` and the score table.
 
+**Real recordings from feedback issues.** The feedback form lets people attach `.wav`/`.flac`/`.ogg` files or a zip and say
+what is in them. A maintainer adds the `score-audio` label and the `score-feedback` workflow replies with wake words caught,
+false alarms per hour and which files were missed (`python feedback_audio.py score --body issue.md` does the same locally).
+The audio is decoded in memory and deleted; only the numbers are posted. Recordings whose owners ticked the consent box can be
+collected into a zip (`positive/` and `negative/` folders) and fed to the `retrain` workflow's `real_clips_url` input, or
+installed locally with `python feedback_audio.py install --zip clips.zip`. Real clips train 20x (wake words) and 5x
+(negatives) more often than synthetic ones.
+
 ## 📁 Project layout
 
 ```
@@ -299,6 +307,7 @@ live.py            microphone demo for the terminal
 docs/              browser demo (index.html), sample clips, charts, raw benchmark numbers
 gen_tts.py         synthesize training clips      train.py          train the network
 mine_negatives.py  find false triggers in real audio  augment.py    background-noise augmentation
+feedback_audio.py  score / install recordings from feedback issues
 model.py           the network                    quantize.py       make the fp16 and int8 files
 benchmark.py       compare network designs        compare_versions.py   compare two trained versions
 tune_threshold.py  threshold trade-off            record_real.py / score_real.py   your own voice
