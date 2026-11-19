@@ -8,4 +8,4 @@ onnxruntime
 onnxconverter-common
 edge-tts
 matplotlib
-torch   # for GPU training install a CUDA build from https://pytorch.org
+torch   # training is CPU-only; the CPU build is enough: pip install torch --index-url https://download.pytorch.org/whl/cpu

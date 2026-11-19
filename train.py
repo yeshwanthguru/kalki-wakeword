@@ -20,6 +20,7 @@ from model import SR, WIN, WakeNet
 
 HERE = Path(__file__).parent
 OUT = HERE / "out"
+DEVICE = "cpu"   # training is CPU-only on purpose: the network is tiny and the audio augmentation is CPU work anyway
 
 
 def load(sub):
@@ -162,26 +163,25 @@ def _one_thread(_):
     torch.set_num_threads(1)   # the main process owns the cores' BLAS threads; workers only run numpy
 
 
-def default_workers(device):
+def default_workers():
     """Worker processes for batch building. Forked on Linux only (spawn would copy the clips per worker).
-    On a GPU the network barely uses the CPU, so nearly all cores build batches; on a CPU the cores are split about evenly
-    between workers and the training threads (measured on 4 cores: 2 + 2 is 2.4x faster than 0 + 4, 3 + 1 only 1.8x)."""
+    The cores are split about evenly between these workers and the training threads (measured on 4 cores: 2 + 2 is 2.4x
+    faster than 0 + 4, 3 + 1 only 1.8x)."""
     import os
     cores = os.cpu_count() or 1
     if not sys.platform.startswith("linux") or cores < 3:
         return 0
-    return min(8, cores - 1) if device == "cuda" else cores // 2
+    return cores // 2
 
 
-def batches(sampler, batch, device, workers, seed=1):
-    """Yield (x, y) on `device`. With workers > 0 the next batches are prepared in parallel while the network trains."""
+def batches(sampler, batch, workers, seed=1):
+    """Yield (x, y) CPU tensors. With workers > 0 the next batches are prepared in parallel while the network trains."""
     if workers <= 0:
         while True:
-            yield sampler.batch(batch, device)
+            yield sampler.batch(batch, DEVICE)
     loader = torch.utils.data.DataLoader(_Stream(sampler, batch, seed), batch_size=None, num_workers=workers,
-                                         prefetch_factor=4, worker_init_fn=_one_thread, pin_memory=device == "cuda")
-    for x, y in loader:
-        yield x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+                                         prefetch_factor=4, worker_init_fn=_one_thread)
+    yield from loader
 
 
 @torch.no_grad()
@@ -225,7 +225,7 @@ def main():
     val_s = Sampler(vp, vn, 2)
     print(f"{len(pos)} pos / {len(neg)} neg clips, held-out voices: {held}, real noise files: {len(bank)}")
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = DEVICE
     model = WakeNet().to(device)
     model.spec_augment = a.specaugment
     ema = copy.deepcopy(model) if a.ema > 0 else None
@@ -233,12 +233,12 @@ def main():
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=1e-2)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, a.lr, total_steps=a.steps)
 
-    workers = default_workers(device) if a.workers is None else a.workers
-    if workers > 0 and device == "cpu":
+    workers = default_workers() if a.workers is None else a.workers
+    if workers > 0:
         import os
         torch.set_num_threads(max((os.cpu_count() or 1) - workers, 1))   # leave the workers their cores
     print(f"building batches with {workers} worker process(es), {torch.get_num_threads()} training thread(s) on {device}")
-    stream = batches(train_s, a.batch, device, workers)
+    stream = batches(train_s, a.batch, workers)
     for step in range(1, a.steps + 1):
         x, y = next(stream)
         target = y * (1 - a.label_smoothing) + a.label_smoothing / 2

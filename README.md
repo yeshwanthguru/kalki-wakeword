@@ -315,10 +315,10 @@ steps of 4 per hour), which was too coarse to tell training variants apart. The 
 432 other) from 11 held-out voices and a 60-minute stream (one false alarm = 1 per hour). A quarter of the voices are held out, so
 training sees fewer voices. Still treat differences of a point or two as noise until run-to-run variance has been measured.
 
-**Faster training.** Most of a training step is building the augmented audio batch on the CPU, not the 55k-parameter network.
-`train.py` now builds batches in worker processes while the network trains (`--workers N`, default automatic, `0` = old
-behaviour). Measured on a 4-core CPU: 32 min for 6000 steps down to about 13 min (2 workers + 2 training threads); on a GPU
-the workers get nearly all the cores and the network step is the small part, so a GPU alone saves at most about a quarter.
+**CPU-only training.** Training and evaluation always run on the CPU, on purpose: the network has 55k parameters and most of a
+training step is building the augmented audio batch, which is CPU work anyway. `train.py` builds batches in worker processes
+while the network trains (`--workers N`, default automatic, `0` = in the training loop). Measured on a 4-core CPU: 32 min for
+6000 steps down to about 13 min (2 workers + 2 training threads). The `retrain` workflow uses the CPU build of torch.
 
 ## 📁 Project layout
 

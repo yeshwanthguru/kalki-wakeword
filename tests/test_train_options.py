@@ -47,7 +47,7 @@ def _sampler():
 def test_batches_in_workers_match_the_direct_path_and_differ_per_worker():
     import train
     for workers in (0, 2):
-        it = train.batches(_sampler(), 8, "cpu", workers)
+        it = train.batches(_sampler(), 8, workers)
         seen = [next(it) for _ in range(4)]
         assert all(x.shape == (8, WIN) and y.shape == (8,) and x.dtype == torch.float32 for x, y in seen)
         assert all(float(y.sum()) == 4 for _, y in seen)                  # half positives, as before
@@ -60,8 +60,17 @@ def test_default_workers_split_cores(monkeypatch):
     import sys
     import train
     monkeypatch.setattr(sys, "platform", "linux")
-    for cores, cpu, gpu in ((1, 0, 0), (2, 0, 0), (4, 2, 3), (8, 4, 7), (64, 32, 8)):
+    for cores, expected in ((1, 0), (2, 0), (4, 2), (8, 4), (64, 32)):
         monkeypatch.setattr(os, "cpu_count", lambda c=cores: c)
-        assert (train.default_workers("cpu"), train.default_workers("cuda")) == (cpu, gpu)
+        assert train.default_workers() == expected
     monkeypatch.setattr(sys, "platform", "darwin")
-    assert train.default_workers("cpu") == 0
+    assert train.default_workers() == 0
+
+
+def test_training_is_cpu_only_even_when_a_gpu_exists(monkeypatch):
+    import benchmark
+    import train
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    assert train.DEVICE == "cpu" and benchmark.DEV == "cpu"
+    x, y = _sampler().batch(4, train.DEVICE)
+    assert x.device.type == "cpu" and y.device.type == "cpu"
