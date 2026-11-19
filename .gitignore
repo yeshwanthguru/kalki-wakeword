@@ -10,3 +10,8 @@ ci_baseline_stale
 eval_set/
 eval-set.zip
 run_info.json
+dist/
+build/
+*.egg-info/
+node_modules/
+js/*.tgz

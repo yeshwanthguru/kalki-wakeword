@@ -42,11 +42,25 @@ jobs:
         run: python eval_set.py fetch
       - name: Score the models
         run: python ci_eval.py
+      - name: Build the Python package
+        run: |
+          # the tag must name the package version (tag v0.2.0 <-> kalki_wakeword.__version__ 0.2.0)
+          V="$(python - <<'PY'
+          import re
+          print(re.search(r'__version__ = "([^"]+)"', open("kalki_wakeword/__init__.py").read()).group(1))
+          PY
+          )"
+          [ "$GITHUB_REF_NAME" = "v$V" ] || { echo "::error::tag $GITHUB_REF_NAME does not match package version $V"; exit 1; }
+          JV="$(node -p "require('./js/package.json').version")"
+          [ "$JV" = "$V" ] || { echo "::error::js/package.json version $JV does not match the Python package version $V"; exit 1; }
+          pip install build
+          python -m build --outdir pkg .
+          (cd js && npm pack --pack-destination ../pkg)
       - name: Build release notes and checksums
         run: |
           mkdir -p dist
-          cp models/kalki_int8.onnx models/kalki_fp16.onnx models/kalki_fp32.onnx dist/
-          (cd dist && sha256sum *.onnx > SHA256SUMS.txt)
+          cp models/kalki_int8.onnx models/kalki_fp16.onnx models/kalki_fp32.onnx pkg/*.whl pkg/*.tar.gz pkg/*.tgz dist/
+          (cd dist && sha256sum *.onnx *.whl *.tar.gz *.tgz > SHA256SUMS.txt)
           {
             echo "Wake word models for \`$GITHUB_REF_NAME\` (commit \`${GITHUB_SHA::7}\`)."
             echo
@@ -54,6 +68,8 @@ jobs:
             echo "|---|---:|---|"
             echo "| \`kalki_int8.onnx\` | $(( $(stat -c%s dist/kalki_int8.onnx) / 1024 )) KB | web pages and apps (default) |"
             echo "| \`kalki_fp16.onnx\` | $(( $(stat -c%s dist/kalki_fp16.onnx) / 1024 )) KB | GPUs and mobile NPUs |"
+            echo "| \`$(basename dist/*.tgz)\` | $(( $(stat -c%s dist/*.tgz) / 1024 )) KB | JavaScript package: \`npm install ./<file>.tgz\` |"
+            echo "| \`$(basename dist/*.whl)\`" | $(( $(stat -c%s dist/*.whl) / 1024 )) KB | Python package: \`pip install <file>.whl\` |"
             echo "| \`kalki_fp32.onnx\` | $(( $(stat -c%s dist/kalki_fp32.onnx) / 1024 )) KB | reference |"
             echo
             echo "### Scores on held-out synthetic voices"
