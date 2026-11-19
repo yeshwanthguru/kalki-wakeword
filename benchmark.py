@@ -21,7 +21,7 @@ from train import Sampler, load, place, split_data, voice_of
 
 HERE = Path(__file__).parent
 OUT, DOCS = HERE / "out", HERE / "docs"
-DEV = "cuda" if torch.cuda.is_available() else "cpu"
+DEV = "cpu"   # training and evaluation are CPU-only on purpose (see train.py)
 
 
 class MLPNet(nn.Module):
