@@ -46,7 +46,7 @@ def voices(folder=EVAL_DIR):
     return set(manifest(folder)["voices"]) if exists(folder) else set()
 
 
-DEFAULT_VERSION = "v1"   # the set the gate, release and retrain workflows fetch; bump once a newer one is published
+DEFAULT_VERSION = "v2"   # the set the gate, release and retrain workflows fetch; bump once a newer one is published
 
 
 def stream_minutes(folder=EVAL_DIR, default=15):
