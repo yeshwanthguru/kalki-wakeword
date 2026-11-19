@@ -42,3 +42,20 @@ jobs:
           "$RUNNER_TEMP/venv/bin/python" -m kalki_wakeword "$GITHUB_WORKSPACE/docs/clips/hey-kalki-1.wav"
           if "$RUNNER_TEMP/venv/bin/python" -m kalki_wakeword "$GITHUB_WORKSPACE/docs/clips/hey-google.wav"; then echo "::error::fired on hey-google"; exit 1; fi
 
+  # The JavaScript package: same clips and the same detection times/probabilities as the Python package.
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install and test
+        working-directory: js
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+      - name: Check what would be published
+        working-directory: js
+        run: npm pack --dry-run
+

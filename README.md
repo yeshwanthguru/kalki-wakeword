@@ -82,6 +82,20 @@ git URL and the wheel attached to each release work today. Inside a checkout, `f
 works. The package carries its own copy of the int8 model (`kalki_wakeword/models/`), which a test keeps identical to `models/`.
 Any language with an ONNX runtime can use the model directly: input is 24,000 float samples (1.5 s at 16 kHz), output is one logit.
 
+**In JavaScript** (browser or Node.js; `js/`, 205 KB with the model, you bring `onnxruntime-web` or `onnxruntime-node`):
+
+```js
+import * as ort from "onnxruntime-web";
+import { WakeWordDetector } from "kalki-wakeword";
+
+const det = await WakeWordDetector.create(ort, { threshold: 0.8 });
+for (const hit of await det.push(float32Samples)) console.log(`heard it at ${hit.time.toFixed(2)}s`);
+```
+
+Install it from the `.tgz` attached to each release (`npm install ./kalki-wakeword-<version>.tgz`) or run `npm pack` in `js/`. It is not on
+the npm registry yet (that needs an npm account and token). The tests check that Node and a real browser (headless Chromium with
+`onnxruntime-web`) give the same detection times and probabilities as the Python package on the demo clips.
+
 ## 📦 The model files and how they're compressed
 
 There is **one model** (one trained network) shipped in **three file formats**. They differ only in how precisely each
@@ -355,6 +369,7 @@ set and adds the score and trigger tables. Nothing is merged for you.
 ```
 models/            kalki_int8.onnx · kalki_fp16.onnx · kalki_fp32.onnx
 kalki_wakeword/    pip package: streaming detector + bundled model (detector.py is a shim)
+js/                npm package for the browser and Node.js (same detector and model)
 live.py            microphone demo for the terminal
 docs/              browser demo (index.html), sample clips, charts, raw benchmark numbers
 gen_tts.py         synthesize training clips      train.py          train the network

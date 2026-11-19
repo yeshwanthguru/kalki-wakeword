@@ -13,3 +13,5 @@ run_info.json
 dist/
 build/
 *.egg-info/
+node_modules/
+js/*.tgz

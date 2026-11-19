@@ -52,3 +52,9 @@ def test_cli_rejects_wrong_rate_and_averages_channels(tmp_path):
     write_wav(tmp_path / "st.wav", stereo.ravel(), channels=2)
     mono = cli.read_wav(tmp_path / "st.wav")
     assert mono.shape == (1600,) and abs(mono).max() < 1e-3          # opposite channels cancel
+
+
+def test_javascript_package_has_the_same_model_and_version():
+    import json
+    assert (ROOT / "js" / "models" / "kalki_int8.onnx").read_bytes() == (ROOT / "models" / "kalki_int8.onnx").read_bytes()
+    assert json.loads((ROOT / "js" / "package.json").read_text())["version"] == kalki_wakeword.__version__
