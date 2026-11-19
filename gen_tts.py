@@ -1,7 +1,7 @@
 """Synthesize training clips with Microsoft Edge TTS (needs internet, no API key).
 
 Writes 16 kHz mono wavs to wakeword/data/{positive,negative}/.
-    python wakeword/gen_tts.py --per-voice 12
+    python gen_tts.py --per-voice 40
 """
 import argparse
 import asyncio
@@ -135,7 +135,7 @@ async def main(args):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--per-voice", type=int, default=12)
+    ap.add_argument("--per-voice", type=int, default=40, help="clips per voice per class (40 trained clearly better than 12; see README)")
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--phrase", help="custom wake phrase; replaces the built-in 'hey kalki' positives and near-miss negatives")
     asyncio.run(main(ap.parse_args()))

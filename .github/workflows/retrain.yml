@@ -10,8 +10,8 @@ on:
         description: Wake phrase (empty = built-in "hey kalki" data)
         default: ""
       per_voice:
-        description: Clips per voice per class for gen_tts.py
-        default: "12"
+        description: "Clips per voice per class for gen_tts.py (40 trained clearly better than 12 on eval-set v2; 100 was not clearly better than 40)"
+        default: "40"
       piper_voices:
         description: "Space-separated Piper model names for a second TTS source (empty = off). Check each voice's licence. e.g. en_GB-vctk-medium en_US-libritts_r-medium"
         default: ""
