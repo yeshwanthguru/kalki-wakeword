@@ -30,4 +30,4 @@ packages = ["kalki_wakeword"]
 version = {attr = "kalki_wakeword.__version__"}
 
 [tool.setuptools.package-data]
-kalki_wakeword = ["data/*.onnx"]
+kalki_wakeword = ["models/*.onnx"]

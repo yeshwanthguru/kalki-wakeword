@@ -14,7 +14,7 @@ import onnxruntime as ort
 SR = 16000
 WIN = 24000   # model input: 1.5 s
 HOP = 1280    # scored every 80 ms
-DEFAULT_MODEL = Path(__file__).parent / "data" / "kalki_int8.onnx"   # kept identical to models/kalki_int8.onnx (tests check it)
+DEFAULT_MODEL = Path(__file__).parent / "models" / "kalki_int8.onnx"   # kept identical to models/kalki_int8.onnx (tests check it)
 
 
 @dataclass

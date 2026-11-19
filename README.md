@@ -79,7 +79,7 @@ for hit in det.push(samples):               # float32 mono 16 kHz audio, any chu
 
 The package depends only on `numpy` and `onnxruntime`. It is not on PyPI yet (publishing needs a PyPI account and token); the
 git URL and the wheel attached to each release work today. Inside a checkout, `from detector import WakeWordDetector` still
-works. The package carries its own copy of the int8 model (`kalki_wakeword/data/`), which a test keeps identical to `models/`.
+works. The package carries its own copy of the int8 model (`kalki_wakeword/models/`), which a test keeps identical to `models/`.
 Any language with an ONNX runtime can use the model directly: input is 24,000 float samples (1.5 s at 16 kHz), output is one logit.
 
 ## 📦 The model files and how they're compressed
