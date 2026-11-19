@@ -133,6 +133,26 @@ jobs:
         run: |
           python ci_eval.py || true
           { echo "### Retrain vs baseline"; echo; cat ci_report.md; } >> "$GITHUB_STEP_SUMMARY"
+      # Machine-readable results and the exact inputs of this run, so runs can be compared with summarize_runs.py.
+      - name: Record run info
+        env:
+          RUN_INPUTS: ${{ toJSON(inputs) }}
+          RUN_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json, os
+          info = {"inputs": json.loads(os.environ["RUN_INPUTS"]), "sha": os.environ["RUN_SHA"], "run_id": os.environ["RUN_ID"]}
+          json.dump(info, open("run_info.json", "w"), indent=1)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrain-report
+          path: |
+            ci_report.json
+            ci_report.md
+            run_info.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: kalki-onnx

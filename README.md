@@ -320,6 +320,19 @@ training step is building the augmented audio batch, which is CPU work anyway. `
 while the network trains (`--workers N`, default automatic, `0` = in the training loop). Measured on a 4-core CPU: 32 min for
 6000 steps down to about 13 min (2 workers + 2 training threads). The `retrain` workflow uses the CPU build of torch.
 
+**Reproducible runs and comparing them.** `train.py --seed N` seeds the network init and the batch streams: two runs with the same
+seed and data give identical weights (checked, also with worker processes), different seeds differ; without `--seed` runs differ
+as before (pass `train_args=--seed 1` to `retrain`). Every `retrain` run now uploads a `retrain-report` artifact with
+`ci_report.json` (the scores) and `run_info.json` (the exact inputs), so runs can be compared without reading logs:
+
+```bash
+python summarize_runs.py control=run4/ci_report.json control=run5/ci_report.json control=run6/ci_report.json \
+                         specaug=run7/ci_report.json --reference control
+```
+
+It prints mean and min-max per group and marks a metric `*` only when a group's mean is clearly outside the reference group's
+range. Repeat a setting a few times first: with three identical runs the range is only a rough estimate of the noise.
+
 ## 📁 Project layout
 
 ```
@@ -332,6 +345,7 @@ mine_negatives.py  find false triggers in real audio  augment.py    background-n
 feedback_audio.py  score / install recordings from feedback issues
 gen_piper.py       second TTS source (Piper multi-speaker voices)
 eval_set.py        build / fetch the frozen evaluation set
+summarize_runs.py  mean/range of several retrain runs vs a reference group
 model.py           the network                    quantize.py       make the fp16 and int8 files
 benchmark.py       compare network designs        compare_versions.py   compare two trained versions
 tune_threshold.py  threshold trade-off            record_real.py / score_real.py   your own voice
