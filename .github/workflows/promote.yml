@@ -1,0 +1,80 @@
+name: promote
+
+# Turn a finished `retrain` run into a pull request that replaces the shipped model: copies the run's ONNX files into models/
+# and the int8 file into docs/ (the browser demo), records docs/baseline.json for the new models on the frozen evaluation set,
+# and adds the trigger-settings table. Nothing is merged: the PR goes through the normal gate and review.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Id of a successful retrain run on main (the number in its URL, .../actions/runs/<id>)
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ inputs.run_id }}
+    steps:
+      - name: Check the run
+        run: |
+          case "$RUN_ID" in ""|*[!0-9]*) echo "::error::run_id must be a number"; exit 1;; esac
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json workflowName,conclusion,headBranch,displayTitle > run.json
+          python3 - <<'PY'
+          import json
+          r = json.load(open("run.json"))
+          assert r["workflowName"] == "retrain", f"run is a '{r['workflowName']}' run, not retrain"
+          assert r["conclusion"] == "success", f"run conclusion is {r['conclusion']}"
+          assert r["headBranch"] == "main", f"run was on {r['headBranch']}, not main"
+          PY
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies (CPU torch)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r <(grep -viE '^(torch|sounddevice)' requirements.txt)
+      - name: Download the run's models
+        run: |
+          mkdir new_models
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n kalki-onnx -D new_models
+          ls -l new_models
+          for f in kalki_fp32 kalki_fp16 kalki_int8; do test -s "new_models/$f.onnx" || { echo "::error::$f.onnx missing"; exit 1; }; done
+          cp new_models/kalki_fp32.onnx new_models/kalki_fp16.onnx new_models/kalki_int8.onnx models/
+          cp new_models/kalki_int8.onnx docs/kalki_int8.onnx
+      - name: Fetch the frozen evaluation set
+        run: python eval_set.py fetch
+      - name: Score the new models and record the baseline
+        run: |
+          test -f eval_set/MANIFEST.json || { echo "::error::no evaluation set published"; exit 1; }
+          python ci_eval.py --update-baseline
+          python ci_eval.py > scores.md || true
+          python tune_trigger.py --markdown trigger.md
+      - name: Open the pull request
+        run: |
+          BRANCH="promote-model-$RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add models docs/kalki_int8.onnx docs/baseline.json
+          git commit -m "Promote the models from retrain run $RUN_ID"
+          git push origin "$BRANCH"
+          {
+            echo "Replaces the shipped models with the ones from retrain run [$RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID)"
+            echo "and records \`docs/baseline.json\` for them on the frozen evaluation set."
+            echo; echo "### Scores"; echo; cat scores.md
+            echo; echo "### Trigger settings"; echo; cat trigger.md
+            echo; echo "Review the numbers against the control runs before merging; the new baseline is only as good as this model."
+          } > body.md
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "Promote the models from retrain run $RUN_ID" --body-file body.md \
+            || { echo "::warning::could not open the PR (repo setting 'Allow GitHub Actions to create pull requests' may be off)"; \
+                 echo "Branch $BRANCH was pushed: open a PR from it into main." >> "$GITHUB_STEP_SUMMARY"; }

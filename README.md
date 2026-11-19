@@ -333,6 +333,16 @@ python summarize_runs.py control=run4/ci_report.json control=run5/ci_report.json
 It prints mean and min-max per group and marks a metric `*` only when a group's mean is clearly outside the reference group's
 range. Repeat a setting a few times first: with three identical runs the range is only a rough estimate of the noise.
 
+**Trigger settings.** `python tune_trigger.py` (after `python eval_set.py fetch`) replays the detector's trigger rule (probability
+threshold x consecutive hits) on the frozen stream for a model and prints wake words caught and false alarms per hour for each
+setting, marks the default (0.8 x 2) and recommends the fewest false alarms within 1% of the best recall. On `eval-set-v2` the
+committed model gives 97% / 27 false alarms per hour at the default, 97% / 22 at 3 hits, and 95% / 13 at 3 hits and 0.9 (each extra
+hit adds 80 ms). That is one synthetic stream, so confirm with `score_real.py` on real recordings before changing a default.
+
+**Replacing the shipped model.** Run the `promote` workflow with the id of a successful `retrain` run on `main`: it opens a pull
+request that copies that run's models into `models/` and `docs/kalki_int8.onnx`, records the new `docs/baseline.json` on the frozen
+set and adds the score and trigger tables. Nothing is merged for you.
+
 ## 📁 Project layout
 
 ```
@@ -346,6 +356,7 @@ feedback_audio.py  score / install recordings from feedback issues
 gen_piper.py       second TTS source (Piper multi-speaker voices)
 eval_set.py        build / fetch the frozen evaluation set
 summarize_runs.py  mean/range of several retrain runs vs a reference group
+tune_trigger.py    threshold x hits sweep on the frozen stream
 model.py           the network                    quantize.py       make the fp16 and int8 files
 benchmark.py       compare network designs        compare_versions.py   compare two trained versions
 tune_threshold.py  threshold trade-off            record_real.py / score_real.py   your own voice
