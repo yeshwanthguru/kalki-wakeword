@@ -310,8 +310,10 @@ two runs that differ in one option can be compared directly. Check each Piper vo
 release `eval-set-v1`. From then on the PR gate, `release` and `retrain` download that set (`python eval_set.py fetch`) and score
 on exactly the same audio, and those voices are kept out of training. A baseline measured on a different set is not compared;
 the gate re-records it on the new set. Until a set is published everything works as before.
-The published `eval-set-v1` has 120 clips (60 wake word, 60 other) from 5 held-out voices, so one clip is about 1.7 points: it
-removes the drift from regenerating clips, not the sampling noise of a small set. Treat differences of a point or two as noise.
+`eval-set-v1` had only 120 clips from 5 held-out voices (one clip is about 1.7 points, and a 15-minute stream counts false alarms in
+steps of 4 per hour), which was too coarse to tell training variants apart. The default is now `eval-set-v2`: 870 clips (438 wake word,
+432 other) from 11 held-out voices and a 60-minute stream (one false alarm = 1 per hour). A quarter of the voices are held out, so
+training sees fewer voices. Still treat differences of a point or two as noise until run-to-run variance has been measured.
 
 **Faster training.** Most of a training step is building the augmented audio batch on the CPU, not the 55k-parameter network.
 `train.py` now builds batches in worker processes while the network trains (`--workers N`, default automatic, `0` = old

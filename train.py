@@ -44,12 +44,12 @@ def split_data(pos, neg):
     return sp(pos, False), sp(neg, False), sp(pos, True), sp(neg, True)
 
 
-def heldout_voices(pos):
-    """Voices kept out of training (1 in 8). Real recordings and second-TTS voices ('pp...') always train, so the
+def heldout_voices(pos, fraction=8):
+    """Voices kept out of training (1 in `fraction`, default 8). Real recordings and second-TTS voices ('pp...') always train, so the
     held-out set, and therefore every benchmark number, stays the same when more training voices are added."""
     voices = sorted({voice_of(p) for p in pos} - {"real"})
     voices = [v for v in voices if not v.startswith("pp")]
-    return set(random.Random(0).sample(voices, max(len(voices) // 8, 1)))
+    return set(random.Random(0).sample(voices, max(len(voices) // fraction, 1)))
 
 
 def noise(n, rng):

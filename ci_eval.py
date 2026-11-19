@@ -24,7 +24,7 @@ def evaluate():
     _, _, vp, vn = splits()
     x, y = Sampler(vp, vn, 123).batch(4000, "cpu")
     x, y = x.numpy(), y.numpy() > 0.5
-    stream, ends = build_stream(vp, vn)
+    stream, ends = build_stream(vp, vn, minutes=eval_set.stream_minutes())
     starts = np.arange(0, len(stream) - WIN, SR // 12)
     windows = np.stack([stream[i:i + WIN] for i in starts])
     out = {}

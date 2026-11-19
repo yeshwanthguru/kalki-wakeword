@@ -9,6 +9,15 @@ on:
       version:
         description: Set name, e.g. v1. A new name makes a new set; an existing release is left alone.
         default: v1
+      per_voice:
+        description: Clips per voice per class to synthesize (more clips per held-out voice = a bigger set)
+        default: "12"
+      fraction:
+        description: Hold out 1 in N voices
+        default: "8"
+      stream_minutes:
+        description: Length of the simulated stream used to count false alarms per hour
+        default: "15"
 
 permissions:
   contents: write
@@ -28,17 +37,21 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r <(grep -viE '^(torch|sounddevice)' requirements.txt)
       - name: Generate clips
-        run: python gen_tts.py --per-voice 12
+        env:
+          PER_VOICE: ${{ inputs.per_voice }}
+        run: python gen_tts.py --per-voice "$PER_VOICE"
       - name: Build and publish the set
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          FRACTION: ${{ inputs.fraction }}
+          MINUTES: ${{ inputs.stream_minutes }}
         run: |
           case "$VERSION" in *[!A-Za-z0-9.-]*|"") echo "::error::version may only contain letters, digits, . and -"; exit 1;; esac
           if gh release view "eval-set-$VERSION" >/dev/null 2>&1; then
             echo "::error::release eval-set-$VERSION already exists; pick a new version"; exit 1
           fi
-          python eval_set.py build --out eval_set --zip eval-set.zip --version "$VERSION"
+          python eval_set.py build --out eval_set --zip eval-set.zip --version "$VERSION" --fraction "$FRACTION" --stream-minutes "$MINUTES"
           gh release create "eval-set-$VERSION" eval-set.zip --latest=false \
             --title "Evaluation set $VERSION" \
             --notes "Frozen held-out clips (synthetic, from the held-out voices) used by the PR gate, release and retrain scoring, so scores do not change when TTS clips are regenerated. Not a model release."
