@@ -163,6 +163,14 @@ def _one_thread(_):
     torch.set_num_threads(1)   # the main process owns the cores' BLAS threads; workers only run numpy
 
 
+def seed_everything(seed):
+    """Seed python, numpy and torch (network init, dropout-free but order-sensitive batches). Near-reproducible, not bit-exact:
+    BLAS threading can still change float sums slightly."""
+    random.seed(seed)
+    np.random.seed(seed % 2**32)
+    torch.manual_seed(seed)
+
+
 def default_workers():
     """Worker processes for batch building. Forked on Linux only (spawn would copy the clips per worker).
     The cores are split about evenly between these workers and the training threads (measured on 4 cores: 2 + 2 is 2.4x
@@ -212,16 +220,21 @@ def main():
     ap.add_argument("--label-smoothing", type=float, default=0.0, help="soften the 0/1 targets (e.g. 0.05)")
     ap.add_argument("--workers", type=int, default=None,
                     help="processes that build augmented batches in parallel with training (default: automatic, 0 = in the training loop)")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="seed the network init and the batch streams (default: unseeded, runs differ)")
     ap.add_argument("--no-augment", action="store_true", help="only the original colored-noise backgrounds")
     ap.add_argument("--noise-dir", default=str(HERE / "data" / "noise"), help="real noise wavs (optional)")
     a = ap.parse_args()
+    if a.seed is not None:
+        seed_everything(a.seed)
+    stream_seed = 1 if a.seed is None else a.seed
 
     pos, neg = load("positive"), load("negative")
     assert pos, "no clips: run gen_tts.py first"
     tp, tn, vp, vn = split_data(pos, neg)
     held = sorted({voice_of(p) for p in vp})
     bank = [] if a.no_augment else load_noise_bank(a.noise_dir)
-    train_s = Sampler(tp, tn, 1, augment=not a.no_augment, noise_bank=bank)
+    train_s = Sampler(tp, tn, stream_seed, augment=not a.no_augment, noise_bank=bank)
     val_s = Sampler(vp, vn, 2)
     print(f"{len(pos)} pos / {len(neg)} neg clips, held-out voices: {held}, real noise files: {len(bank)}")
 
@@ -238,7 +251,7 @@ def main():
         import os
         torch.set_num_threads(max((os.cpu_count() or 1) - workers, 1))   # leave the workers their cores
     print(f"building batches with {workers} worker process(es), {torch.get_num_threads()} training thread(s) on {device}")
-    stream = batches(train_s, a.batch, workers)
+    stream = batches(train_s, a.batch, workers, seed=stream_seed)
     for step in range(1, a.steps + 1):
         x, y = next(stream)
         target = y * (1 - a.label_smoothing) + a.label_smoothing / 2

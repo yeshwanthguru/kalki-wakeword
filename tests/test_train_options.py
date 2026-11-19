@@ -74,3 +74,18 @@ def test_training_is_cpu_only_even_when_a_gpu_exists(monkeypatch):
     assert train.DEVICE == "cpu" and benchmark.DEV == "cpu"
     x, y = _sampler().batch(4, train.DEVICE)
     assert x.device.type == "cpu" and y.device.type == "cpu"
+
+
+def test_seed_everything_makes_init_and_random_streams_repeat():
+    import random
+
+    import numpy as np
+
+    import train
+    train.seed_everything(7)
+    a = (random.random(), float(np.random.rand()), WakeNet().state_dict()["head.weight"].clone())
+    train.seed_everything(7)
+    b = (random.random(), float(np.random.rand()), WakeNet().state_dict()["head.weight"].clone())
+    assert a[0] == b[0] and a[1] == b[1] and torch.equal(a[2], b[2])
+    train.seed_everything(8)
+    assert not torch.equal(a[2], WakeNet().state_dict()["head.weight"])

@@ -9,3 +9,4 @@ ci_report.*
 ci_baseline_stale
 eval_set/
 eval-set.zip
+run_info.json
