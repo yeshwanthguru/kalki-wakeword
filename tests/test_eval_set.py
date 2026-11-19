@@ -31,6 +31,16 @@ def test_read_side(tmp_path):
     eval_set.verify(tmp_path)
 
 
+def test_stream_minutes_defaults_and_reads_the_manifest(tmp_path):
+    assert eval_set.stream_minutes(tmp_path) == 15            # no set: the original stream length
+    make_set(tmp_path)
+    assert eval_set.stream_minutes(tmp_path) == 15            # a v1-style manifest without the field
+    m = json.loads((tmp_path / "MANIFEST.json").read_text())
+    m["stream_minutes"] = 60
+    (tmp_path / "MANIFEST.json").write_text(json.dumps(m))
+    assert eval_set.stream_minutes(tmp_path) == 60
+
+
 def test_verify_catches_a_changed_clip(tmp_path):
     make_set(tmp_path)
     sf.write(tmp_path / "positive" / "pos_v1_0.wav", np.zeros(8000, np.float32), 16000)
@@ -77,3 +87,11 @@ def test_report_does_not_compare_against_a_baseline_from_another_set():
     assert same[1] and not same[2]                       # a real drop on the same set fails
     other = ci_eval.report(cur, {"fp32": {**row, "auc": 0.999}, "eval_set": "regenerated"}, 0.005, 8)
     assert other[1] == [] and other[2]                   # different set: not compared, flagged stale
+
+
+def test_heldout_fraction_holds_out_more_voices():
+    import train
+    pos = {Path(f"pos_voice{i:02d}_0.wav"): 0 for i in range(40)}
+    assert len(train.heldout_voices(pos)) == 5 and len(train.heldout_voices(pos, 4)) == 10
+    assert train.heldout_voices(pos, 4) >= set()                       # deterministic, same call twice
+    assert train.heldout_voices(pos, 4) == train.heldout_voices(pos, 4)

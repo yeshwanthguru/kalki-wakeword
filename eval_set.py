@@ -46,10 +46,19 @@ def voices(folder=EVAL_DIR):
     return set(manifest(folder)["voices"]) if exists(folder) else set()
 
 
-def build(out, zip_path=None, version="v1"):
-    """Copy the held-out voices' clips from data/ into out/ with a manifest of checksums."""
+DEFAULT_VERSION = "v1"   # the set the gate, release and retrain workflows fetch; bump once a newer one is published
+
+
+def stream_minutes(folder=EVAL_DIR, default=15):
+    """Length of the simulated stream the false-alarm rate is measured on (recorded in the set so scores stay comparable)."""
+    return manifest(folder).get("stream_minutes", default) if exists(folder) else default
+
+
+def build(out, zip_path=None, version="v1", fraction=8, minutes=15):
+    """Copy the held-out voices' clips from data/ into out/ with a manifest of checksums.
+    fraction: hold out 1 in `fraction` voices. minutes: stream length used to count false alarms per hour."""
     from train import heldout_voices, load, voice_of   # torch is only needed for building, not for reading
-    held = heldout_voices(load("positive"))
+    held = heldout_voices(load("positive"), fraction)
     out = Path(out)
     if out.exists():
         shutil.rmtree(out)
@@ -60,7 +69,7 @@ def build(out, zip_path=None, version="v1"):
             if voice_of(p) in held:
                 shutil.copy(p, out / sub / p.name)
                 files[f"{sub}/{p.name}"] = hashlib.sha256(p.read_bytes()).hexdigest()
-    m = {"version": version, "voices": sorted(held), "n_files": len(files), "files": files}
+    m = {"version": version, "voices": sorted(held), "n_files": len(files), "stream_minutes": minutes, "files": files}
     (out / "MANIFEST.json").write_text(json.dumps(m, indent=1))
     if zip_path:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
@@ -114,10 +123,12 @@ if __name__ == "__main__":
     b = sub.add_parser("build")
     b.add_argument("--out", default=str(EVAL_DIR))
     b.add_argument("--zip")
-    b.add_argument("--version", default="v1")
-    b.set_defaults(fn=lambda a: print(json.dumps({k: v for k, v in build(a.out, a.zip, a.version).items() if k != "files"})))
+    b.add_argument("--version", default=DEFAULT_VERSION)
+    b.add_argument("--fraction", type=int, default=8, help="hold out 1 in N voices")
+    b.add_argument("--stream-minutes", type=float, default=15, help="length of the false-alarm stream")
+    b.set_defaults(fn=lambda a: print(json.dumps({k: v for k, v in build(a.out, a.zip, a.version, a.fraction, a.stream_minutes).items() if k != "files"})))
     f = sub.add_parser("fetch")
-    f.add_argument("--version", default="v1")
+    f.add_argument("--version", default=DEFAULT_VERSION)
     f.set_defaults(fn=cmd_fetch)
     a = ap.parse_args()
     a.fn(a)
