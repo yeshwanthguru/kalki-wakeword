@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kalki-wakeword"
+dynamic = ["version"]
+description = "A 232 KB 'hey kalki' wake word model and streaming detector. CPU only."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = ["numpy", "onnxruntime"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
+[project.optional-dependencies]
+mic = ["sounddevice"]
+
+[project.urls]
+Homepage = "https://github.com/yeshwanthguru/kalki-wakeword"
+Demo = "https://yeshwanthguru.github.io/kalki-wakeword/"
+
+[tool.setuptools]
+packages = ["kalki_wakeword"]
+
+[tool.setuptools.dynamic]
+version = {attr = "kalki_wakeword.__version__"}
+
+[tool.setuptools.package-data]
+kalki_wakeword = ["data/*.onnx"]

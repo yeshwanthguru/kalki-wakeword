@@ -51,6 +51,7 @@ jobs:
           for f in kalki_fp32 kalki_fp16 kalki_int8; do test -s "new_models/$f.onnx" || { echo "::error::$f.onnx missing"; exit 1; }; done
           cp new_models/kalki_fp32.onnx new_models/kalki_fp16.onnx new_models/kalki_int8.onnx models/
           cp new_models/kalki_int8.onnx docs/kalki_int8.onnx
+          cp new_models/kalki_int8.onnx kalki_wakeword/data/kalki_int8.onnx   # the pip package's copy
       - name: Fetch the frozen evaluation set
         run: python eval_set.py fetch
       - name: Score the new models and record the baseline
@@ -65,7 +66,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add models docs/kalki_int8.onnx docs/baseline.json
+          git add models docs/kalki_int8.onnx kalki_wakeword/data docs/baseline.json
           git commit -m "Promote the models from retrain run $RUN_ID"
           git push origin "$BRANCH"
           {
