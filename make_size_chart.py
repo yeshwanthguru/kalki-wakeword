@@ -74,7 +74,7 @@ def main():
     ax[1].bar(labels, rec, color=colors, width=0.62)
     for i, v in enumerate(rec):
         ax[1].text(i, v + 1, f"{v:.1f}%", ha="center", va="bottom", fontweight="bold", fontsize=10)
-    ax[1].set_ylim(0, 110); ax[1].set_ylabel("wake words caught (%)"); ax[1].set_title("Accuracy is unchanged", loc="left", fontweight="bold")
+    ax[1].set_ylim(0, 110); ax[1].set_ylabel("wake words caught (%)"); ax[1].set_title("Accuracy is about the same", loc="left", fontweight="bold")
     for axis in ax:
         axis.spines[["top", "right"]].set_visible(False); axis.tick_params(axis="x", labelsize=9)
     fig.text(0.5, 0.005, "Held-out synthetic voices (eval-set-v2), threshold 0.5, same 4,000-window test set for all four files",
