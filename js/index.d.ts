@@ -9,10 +9,17 @@ export interface Detection {
   prob: number;
 }
 
+export type Sensitivity = "sensitive" | "balanced" | "strict";
+
+/** [threshold, hits] for each preset */
+export const SENSITIVITY: Record<Sensitivity, [number, number]>;
+
 export interface DetectorSettings {
-  /** probability a window must exceed (default 0.8) */
+  /** preset for threshold and hits (default "balanced": 0.8 and 2) */
+  sensitivity?: Sensitivity;
+  /** probability a window must exceed; overrides the preset */
   threshold?: number;
-  /** consecutive windows above the threshold needed to fire (default 2) */
+  /** consecutive windows above the threshold needed to fire; overrides the preset */
   hits?: number;
   /** seconds to wait after a detection before the next one (default 1.5) */
   cooldown?: number;

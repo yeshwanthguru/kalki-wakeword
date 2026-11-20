@@ -12,6 +12,11 @@ export const SR = 16000;
 export const WIN = 24000; // model input: 1.5 s
 export const HOP = 1280; // scored every 80 ms
 
+// Named trade-offs between missed wake words and false alarms: [probability threshold, consecutive windows that must exceed it].
+// Measured for the shipped model on eval-set-v2 (see the Python package's SENSITIVITY): sensitive about 98% caught / 44 false alarms
+// per hour, balanced (default) about 97% / 27, strict about 95% / 13. A starting point: confirm on your own recordings.
+export const SENSITIVITY = { sensitive: [0.6, 2], balanced: [0.8, 2], strict: [0.9, 3] };
+
 export const defaultModelUrl = new URL("./models/kalki_int8.onnx", import.meta.url);
 
 /** Model bytes from a URL (http(s):// or file://), a path-like string, an ArrayBuffer or a Uint8Array. */
@@ -30,18 +35,22 @@ export async function loadModelBytes(source = defaultModelUrl) {
 
 export class WakeWordDetector {
   /** Prefer WakeWordDetector.create(ort, options), which loads the model for you. */
-  constructor(ort, session, { threshold = 0.8, hits = 2, cooldown = 1.5 } = {}) {
+  constructor(ort, session, { threshold, hits, cooldown = 1.5, sensitivity = "balanced" } = {}) {
+    if (!Object.hasOwn(SENSITIVITY, sensitivity)) {
+      throw new Error(`sensitivity must be one of ${Object.keys(SENSITIVITY).join(", ")}, got ${sensitivity}`);
+    }
     this.ort = ort;
     this.session = session;
-    this.threshold = threshold;
-    this.hits = hits;
+    this.threshold = threshold ?? SENSITIVITY[sensitivity][0];
+    this.hits = hits ?? SENSITIVITY[sensitivity][1];
     this.cooldown = cooldown;
     this.reset();
   }
 
   /**
    * @param ort the module `onnxruntime-web` or `onnxruntime-node`
-   * @param options { model, threshold = 0.8, hits = 2, cooldown = 1.5, sessionOptions }
+   * @param options { model, sensitivity = "balanced" | "sensitive" | "strict", threshold, hits, cooldown = 1.5, sessionOptions }
+   *   threshold and hits override the sensitivity preset (default balanced: 0.8 and 2)
    */
   static async create(ort, { model = defaultModelUrl, sessionOptions = {}, ...settings } = {}) {
     const session = await ort.InferenceSession.create(await loadModelBytes(model), sessionOptions);

@@ -1,11 +1,11 @@
-"""python -m kalki_wakeword clip.wav [--threshold 0.8] [--hits 2]: run the detector over a 16 kHz 16-bit wav file."""
+"""python -m kalki_wakeword clip.wav [--sensitivity balanced] [--threshold 0.8] [--hits 2]: run the detector over a 16 kHz 16-bit wav file."""
 import argparse
 import sys
 import wave
 
 import numpy as np
 
-from . import SR, WakeWordDetector, __version__
+from . import SENSITIVITY, SR, WakeWordDetector, __version__
 
 
 def read_wav(path):
@@ -22,12 +22,13 @@ def read_wav(path):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="python -m kalki_wakeword", description=__doc__)
     ap.add_argument("wav", help="16 kHz, 16-bit PCM wav file")
-    ap.add_argument("--threshold", type=float, default=0.8)
-    ap.add_argument("--hits", type=int, default=2, help="consecutive windows above the threshold needed to fire")
+    ap.add_argument("--sensitivity", choices=sorted(SENSITIVITY), default="balanced", help="preset for the threshold and hits")
+    ap.add_argument("--threshold", type=float, help="override the preset's probability threshold")
+    ap.add_argument("--hits", type=int, help="override the preset's consecutive windows above the threshold needed to fire")
     ap.add_argument("--version", action="version", version=f"kalki-wakeword {__version__}")
     a = ap.parse_args(argv)
     x = read_wav(a.wav)
-    det = WakeWordDetector(threshold=a.threshold, hits=a.hits)
+    det = WakeWordDetector(threshold=a.threshold, hits=a.hits, sensitivity=a.sensitivity)
     hits = det.push(x) + det.push(np.zeros(4000, np.float32))   # let the last window finish
     for h in hits:
         print(f"heard it at {h.time:.2f}s (p={h.prob:.2f})")
