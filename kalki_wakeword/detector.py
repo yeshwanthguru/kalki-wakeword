@@ -1,10 +1,11 @@
 """Streaming "hey kalki" detector you can drop into any Python app.
 
     from kalki_wakeword import WakeWordDetector
-    det = WakeWordDetector()                  # loads the bundled kalki_int8.onnx
+    det = WakeWordDetector()                  # loads the bundled 36 KB model (falls back to the 232 KB one)
     for hit in det.push(samples):             # float32 mono 16 kHz, any chunk size
         print(f"heard it at {hit.time:.2f}s (p={hit.prob:.2f})")
 """
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,7 +15,9 @@ import onnxruntime as ort
 SR = 16000
 WIN = 24000   # model input: 1.5 s
 HOP = 1280    # scored every 80 ms
-DEFAULT_MODEL = Path(__file__).parent / "models" / "kalki_int8.onnx"   # kept identical to models/kalki_int8.onnx (tests check it)
+INT4_MODEL = Path(__file__).parent / "models" / "kalki_int4.onnx"   # 36 KB, needs onnxruntime >= 1.20; the default
+DEFAULT_MODEL = Path(__file__).parent / "models" / "kalki_int8.onnx"   # 232 KB, loads everywhere; the fallback
+# Both are kept identical to models/kalki_int4.onnx and models/kalki_int8.onnx (tests check it).
 
 
 # Named trade-offs between missed wake words and false alarms: (probability threshold, consecutive windows that must exceed it).
@@ -32,19 +35,34 @@ class Detection:
 
 
 class WakeWordDetector:
-    def __init__(self, model_path=DEFAULT_MODEL, threshold=None, hits=None, cooldown=1.5, sensitivity="balanced"):
-        """sensitivity: 'sensitive', 'balanced' (default) or 'strict' picks the threshold and hits; passing threshold or hits
+    def __init__(self, model_path=None, threshold=None, hits=None, cooldown=1.5, sensitivity="balanced"):
+        """model_path: a .onnx file. Default: the bundled 36 KB int4 model, or the 232 KB int8 model if the installed onnxruntime
+        cannot load it (it needs 1.20 or newer). The file actually used is in `self.model_path`.
+        sensitivity: 'sensitive', 'balanced' (default) or 'strict' picks the threshold and hits; passing threshold or hits
         yourself overrides that part of the preset."""
         if sensitivity not in SENSITIVITY:
             raise ValueError(f"sensitivity must be one of {sorted(SENSITIVITY)}, got {sensitivity!r}")
         preset_threshold, preset_hits = SENSITIVITY[sensitivity]
         threshold = preset_threshold if threshold is None else threshold
         hits = preset_hits if hits is None else hits
-        so = ort.SessionOptions()
-        so.intra_op_num_threads = 1
-        self.sess = ort.InferenceSession(str(model_path), so, providers=["CPUExecutionProvider"])
+        self.sess, self.model_path = self._open(model_path)
         self.threshold, self.hits, self.cooldown = threshold, hits, cooldown
         self.reset()
+
+    @staticmethod
+    def _open(model_path):
+        def session(path):
+            so = ort.SessionOptions()
+            so.intra_op_num_threads = 1
+            return ort.InferenceSession(str(path), so, providers=["CPUExecutionProvider"])
+        if model_path is not None:
+            return session(model_path), Path(model_path)
+        try:
+            return session(INT4_MODEL), INT4_MODEL
+        except Exception as e:   # an onnxruntime too old for 4-bit weights
+            warnings.warn(f"could not load the 36 KB int4 model ({str(e).splitlines()[0][:120]}); using the 232 KB int8 model. "
+                          "Upgrade onnxruntime to 1.20 or newer to use the smaller one.", RuntimeWarning, stacklevel=3)
+            return session(DEFAULT_MODEL), DEFAULT_MODEL
 
     def reset(self):
         self.buf = np.zeros(WIN, np.float32)

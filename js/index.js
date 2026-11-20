@@ -2,7 +2,7 @@
 //
 //   import * as ort from "onnxruntime-web";            // in a browser (or "onnxruntime-node" in Node)
 //   import { WakeWordDetector } from "kalki-wakeword";
-//   const det = await WakeWordDetector.create(ort);    // loads the bundled 232 KB int8 model
+//   const det = await WakeWordDetector.create(ort);    // loads the bundled 36 KB model (falls back to a 232 KB one)
 //   for (const hit of await det.push(samples)) console.log(`heard it at ${hit.time.toFixed(2)}s (p=${hit.prob.toFixed(2)})`);
 //
 // `samples` is a Float32Array of mono 16 kHz audio in [-1, 1], any chunk size. You bring the ONNX runtime, so the package has no
@@ -17,7 +17,8 @@ export const HOP = 1280; // scored every 80 ms
 // per hour, balanced (default) about 97% / 27, strict about 95% / 13. A starting point: confirm on your own recordings.
 export const SENSITIVITY = { sensitive: [0.6, 2], balanced: [0.8, 2], strict: [0.9, 3] };
 
-export const defaultModelUrl = new URL("./models/kalki_int8.onnx", import.meta.url);
+export const defaultModelUrl = new URL("./models/kalki_int4.onnx", import.meta.url); // 36 KB, needs onnxruntime >= 1.20
+export const fallbackModelUrl = new URL("./models/kalki_int8.onnx", import.meta.url); // 232 KB, loads on any version
 
 /** Model bytes from a URL (http(s):// or file://), a path-like string, an ArrayBuffer or a Uint8Array. */
 export async function loadModelBytes(source = defaultModelUrl) {
@@ -49,12 +50,21 @@ export class WakeWordDetector {
 
   /**
    * @param ort the module `onnxruntime-web` or `onnxruntime-node`
-   * @param options { model, sensitivity = "balanced" | "sensitive" | "strict", threshold, hits, cooldown = 1.5, sessionOptions }
+   * @param options { model (default: the bundled 36 KB model, with a fallback), sensitivity = "balanced" | "sensitive" | "strict", threshold, hits, cooldown = 1.5, sessionOptions }
    *   threshold and hits override the sensitivity preset (default balanced: 0.8 and 2)
    */
-  static async create(ort, { model = defaultModelUrl, sessionOptions = {}, ...settings } = {}) {
-    const session = await ort.InferenceSession.create(await loadModelBytes(model), sessionOptions);
-    return new WakeWordDetector(ort, session, settings);
+  static async create(ort, { model, sessionOptions = {}, ...settings } = {}) {
+    const open = async (source) => ort.InferenceSession.create(await loadModelBytes(source), sessionOptions);
+    let session, used = model;
+    if (model === undefined) {
+      // default: the 36 KB model, or the 232 KB one if this onnxruntime cannot load 4-bit weights (it needs 1.20 or newer)
+      try { session = await open((used = defaultModelUrl)); } catch { session = await open((used = fallbackModelUrl)); }
+    } else {
+      session = await open(model);
+    }
+    const detector = new WakeWordDetector(ort, session, settings);
+    detector.modelSource = used; // which model was loaded
+    return detector;
   }
 
   reset() {

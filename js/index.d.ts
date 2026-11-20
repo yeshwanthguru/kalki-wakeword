@@ -2,6 +2,7 @@ export const SR: 16000;
 export const WIN: 24000;
 export const HOP: 1280;
 export const defaultModelUrl: URL;
+export const fallbackModelUrl: URL;
 
 export interface Detection {
   /** seconds of audio fed so far when it fired */
@@ -41,6 +42,8 @@ export class WakeWordDetector {
   hits: number;
   cooldown: number;
   lastProb: number;
+  /** the model that was loaded: defaultModelUrl, fallbackModelUrl or what you passed */
+  modelSource: unknown;
   reset(): void;
   prob(window: Float32Array): Promise<number>;
   /** mono 16 kHz audio in [-1, 1], any chunk size */

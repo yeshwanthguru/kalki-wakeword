@@ -59,18 +59,20 @@ jobs:
       - name: Build release notes and checksums
         run: |
           mkdir -p dist
-          cp models/kalki_int8.onnx models/kalki_fp16.onnx models/kalki_fp32.onnx pkg/*.whl pkg/*.tar.gz pkg/*.tgz dist/
+          cp models/kalki_int4.onnx models/kalki_int8.onnx models/kalki_fp16.onnx models/kalki_fp32.onnx pkg/*.whl pkg/*.tar.gz pkg/*.tgz dist/
           (cd dist && sha256sum *.onnx *.whl *.tar.gz *.tgz > SHA256SUMS.txt)
+          kb() { echo $(( $(stat -c%s "$1") / 1024 )); }
           {
             echo "Wake word models for \`$GITHUB_REF_NAME\` (commit \`${GITHUB_SHA::7}\`)."
             echo
             echo "| file | size | use it for |"
             echo "|---|---:|---|"
-            echo "| \`kalki_int8.onnx\` | $(( $(stat -c%s dist/kalki_int8.onnx) / 1024 )) KB | web pages and apps (default) |"
-            echo "| \`kalki_fp16.onnx\` | $(( $(stat -c%s dist/kalki_fp16.onnx) / 1024 )) KB | GPUs and mobile NPUs |"
-            echo "| \`$(basename dist/*.tgz)\` | $(( $(stat -c%s dist/*.tgz) / 1024 )) KB | JavaScript package: \`npm install ./<file>.tgz\` |"
-            echo "| \`$(basename dist/*.whl)\`" | $(( $(stat -c%s dist/*.whl) / 1024 )) KB | Python package: \`pip install <file>.whl\` |"
-            echo "| \`kalki_fp32.onnx\` | $(( $(stat -c%s dist/kalki_fp32.onnx) / 1024 )) KB | reference |"
+            echo "| \`kalki_int4.onnx\` | $(kb dist/kalki_int4.onnx) KB | the smallest: 4-bit weights, needs onnxruntime 1.20 or newer (default in the packages) |"
+            echo "| \`kalki_int8.onnx\` | $(kb dist/kalki_int8.onnx) KB | web pages and apps on any onnxruntime version |"
+            echo "| \`kalki_fp16.onnx\` | $(kb dist/kalki_fp16.onnx) KB | GPUs and mobile NPUs |"
+            echo "| \`kalki_fp32.onnx\` | $(kb dist/kalki_fp32.onnx) KB | reference; retraining and format conversion |"
+            echo "| \`$(basename dist/*.whl)\` | $(kb dist/*.whl) KB | Python package: \`pip install <file>.whl\` |"
+            echo "| \`$(basename dist/*.tgz)\` | $(kb dist/*.tgz) KB | JavaScript package: \`npm install ./<file>.tgz\` |"
             echo
             echo "### Scores on held-out synthetic voices"
             echo

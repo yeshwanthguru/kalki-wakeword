@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import * as ort from "onnxruntime-node";
-import { HOP, SENSITIVITY, SR, WakeWordDetector, loadModelBytes } from "../index.js";
+import { HOP, SENSITIVITY, SR, WakeWordDetector, defaultModelUrl, fallbackModelUrl, loadModelBytes } from "../index.js";
 
 const CLIPS = new URL("../../docs/clips/", import.meta.url);
 
@@ -33,8 +33,8 @@ async function run(name, chunk = HOP, options = {}) {
   return hits;
 }
 
-// Reference values come from the Python package (kalki_wakeword) on the same clips.
-const FIRES = { "hey-kalki-1": [1.6, 0.9999], "hey-kalki-2": [1.6, 0.9996], "hey-kalki-3": [1.52, 0.9987] };
+// Reference values come from the Python package (kalki_wakeword, default model) on the same clips.
+const FIRES = { "hey-kalki-1": [1.6, 1.0], "hey-kalki-2": [1.52, 0.9994], "hey-kalki-3": [1.52, 0.9989] };
 
 for (const [name, [time, prob]] of Object.entries(FIRES)) {
   test(`fires once on ${name}, at the same time and probability as Python`, async () => {
@@ -71,7 +71,7 @@ test("settings: a higher threshold or more hits can suppress the detection", asy
 
 test("loads the model from bytes and reports a missing file clearly", async () => {
   const bytes = await loadModelBytes();
-  assert.ok(bytes.length > 200_000);
+  assert.ok(bytes.length > 30_000 && bytes.length < 50_000); // the default is the 36 KB model
   const det = await WakeWordDetector.create(ort, { model: bytes });
   assert.equal((await det.push(new Float32Array(HOP))).length, 0);
   await assert.rejects(loadModelBytes(new URL("file:///no/such/model.onnx")));
@@ -88,4 +88,20 @@ test("sensitivity presets: the default is balanced, overrides win, and every pre
     assert.equal((await run("hey-kalki-1", HOP, { sensitivity })).length, 1, sensitivity);
     assert.equal((await run("hey-google", HOP, { sensitivity })).length, 0, sensitivity);
   }
+});
+
+test("the default model is the 36 KB one, and the 232 KB one is the fallback", async () => {
+  assert.ok((await loadModelBytes(defaultModelUrl)).length < 50_000);
+  assert.ok((await loadModelBytes(fallbackModelUrl)).length > 200_000);
+  assert.equal((await WakeWordDetector.create(ort)).modelSource, defaultModelUrl);
+
+  // a runtime that cannot read 4-bit weights fails on the first model; the detector must fall back and still work
+  let calls = 0;
+  const oldRuntime = { ...ort, InferenceSession: { create: async (bytes, opts) => {
+    if (calls++ === 0) throw new Error("unsupported type int4");
+    return ort.InferenceSession.create(bytes, opts);
+  } } };
+  const det = await WakeWordDetector.create({ Tensor: ort.Tensor, InferenceSession: oldRuntime.InferenceSession });
+  assert.equal(det.modelSource, fallbackModelUrl);
+  assert.equal(calls, 2);
 });

@@ -261,7 +261,10 @@ $("runall").onclick = async () => { $("runall").disabled = true; await scoreAll(
   try {
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
-    session = await ort.InferenceSession.create("kalki_int8.onnx?v=2", { executionProviders: ["wasm"] });
+    const opts = { executionProviders: ["wasm"] };
+    // the 36 KB model (4-bit weights); the 232 KB one if this onnxruntime cannot load it
+    try { session = await ort.InferenceSession.create("kalki_int4.onnx?v=1", opts); }
+    catch (_) { session = await ort.InferenceSession.create("kalki_int8.onnx?v=2", opts); }
     $("status").textContent = "Model ready. Play a sample or turn on your microphone.";
     document.querySelectorAll("button").forEach(b => b.disabled = false);
     draw();
