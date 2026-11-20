@@ -1,6 +1,6 @@
 # kalki-wakeword
 
-A 232 KB "hey kalki" wake word model and streaming detector for the browser and Node.js. It runs on the CPU (WebAssembly in a
+A 36 KB "hey kalki" wake word model and streaming detector for the browser and Node.js. It runs on the CPU (WebAssembly in a
 browser) and has no dependencies of its own: you bring the ONNX runtime, `onnxruntime-web` or `onnxruntime-node`.
 
 ```js
@@ -15,9 +15,10 @@ for (const hit of await det.push(samples)) {
 ```
 
 - `WakeWordDetector.create(ort, { model, threshold = 0.8, hits = 2, cooldown = 1.5, sessionOptions })`.
-  `model` is a URL, `file://` URL, `ArrayBuffer` or `Uint8Array` (default: the bundled model).
+  `model` is a URL, `file://` URL, `ArrayBuffer` or `Uint8Array`. The default is the bundled 36 KB model (4-bit weights, needs
+  onnxruntime 1.20 or newer) and, if the runtime cannot load it, the bundled 232 KB int8 model.
 - `push()` is async and processes calls in order. `reset()` clears the stream state.
-- In a browser, your bundler or server must serve `models/kalki_int8.onnx` (the default model URL is relative to the module) and
+- In a browser, your bundler or server must serve `models/kalki_int4.onnx` and `models/kalki_int8.onnx` (the default model URLs are relative to the module) and
   the `onnxruntime-web` WebAssembly files.
 - The same trigger rule and model as the Python package; the tests check that detection times and probabilities match it.
 

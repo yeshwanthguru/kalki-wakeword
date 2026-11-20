@@ -2,7 +2,7 @@
 
 # 🎙️ Hey Kalki
 
-### A tiny wake word model: **232 KB**, runs on a plain CPU or in a browser tab, trained with **zero recordings**.
+### A tiny wake word model: **36 KB**, runs on a plain CPU or in a browser tab, trained with **zero recordings**.
 
 [![tests](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml/badge.svg)](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml)
 ![model size](https://img.shields.io/badge/model-232%20KB-0f7b5f)
@@ -34,7 +34,7 @@ anyone to start, and you can retrain it for a phrase of your own.
 | | |
 |---|---|
 | **Wake phrase** | "hey kalki" |
-| **Model size** | 232 KB (int8), 444 KB (fp16), 881 KB (fp32), all the same accuracy |
+| **Model size** | 36 KB (int4), 232 KB (int8), 444 KB (fp16), 881 KB (fp32), all the same accuracy |
 | **Network** | 55,105 parameters: 3 conv layers + a GRU |
 | **Input** | 1.5 s of raw 16 kHz mono audio (no preprocessing needed) |
 | **Output** | probability that the wake word *just ended*, every 80 ms |
@@ -72,7 +72,7 @@ python -m kalki_wakeword clip.wav                                     # check th
 ```python
 from kalki_wakeword import WakeWordDetector
 
-det = WakeWordDetector(threshold=0.8)       # loads the bundled kalki_int8.onnx
+det = WakeWordDetector(threshold=0.8)       # loads the bundled 36 KB model (232 KB int8 if onnxruntime < 1.20)
 for hit in det.push(samples):               # float32 mono 16 kHz audio, any chunk size
     print(f"heard it (p={hit.prob:.2f})")
 ```
@@ -98,25 +98,56 @@ the npm registry yet (that needs an npm account and token). The tests check that
 
 ## 📦 The model files and how they're compressed
 
-There is **one model** (one trained network) shipped in **three file formats**. They differ only in how precisely each
+There is **one model** (one trained network) shipped in **four file formats**. They differ only in how precisely each
 number is stored. Accuracy is the same; size is not.
 
 ![Model sizes and accuracy](docs/model_sizes.png)
 
 | File | Precision | Size | Wake words caught | AUC | CPU / window |
 |------|-----------|-----:|------------------:|----:|-------------:|
-| [`kalki_int8.onnx`](models/kalki_int8.onnx) | 8-bit | **232 KB** (-74%) | 92.7% | 0.9930 | ~1.7 ms |
+| [`kalki_int4.onnx`](models/kalki_int4.onnx) | 4-bit, front end computed at load | **36 KB** (-96%) | same (see below) | same (see below) | ~0.65 ms |
+| [`kalki_int8.onnx`](models/kalki_int8.onnx) | 8-bit | 232 KB (-74%) | 92.7% | 0.9930 | ~1.7 ms |
 | [`kalki_fp16.onnx`](models/kalki_fp16.onnx) | 16-bit | 444 KB (-50%) | 92.6% | 0.9930 | ~1.5 ms |
 | [`kalki_fp32.onnx`](models/kalki_fp32.onnx) | 32-bit | 881 KB (original) | 92.6% | 0.9930 | ~1.7 ms |
 
 **Which one?**
 
-- **`kalki_int8.onnx`** (default): when download size matters, such as web pages and apps. The browser demo loads this one.
+- **`kalki_int4.onnx`** (default): the smallest, for web pages and apps. The packages and the browser demo load this one. It needs
+  onnxruntime 1.20 or newer; the packages fall back to the int8 file when it cannot be loaded.
+- **`kalki_int8.onnx`**: the same model for any onnxruntime version.
 - **`kalki_fp16.onnx`**: smaller than the original, but with no rounding of the weights to integers.
 - **`kalki_fp32.onnx`**: the exact trained numbers; use it if you plan to retrain or convert it to another format.
 
 Accuracy is measured on the same 4,000-window held-out test set for all three. Speeds are one thread on a laptop CPU and
 vary with machine load, so treat them as "about the same", not as a ranking.
+
+### The 36 KB model
+
+`kalki_int4.onnx` is made from the fp32 model by `python shrink_model.py`, with no retraining, in two steps:
+
+1. **The audio front end is computed, not stored.** 72% of the 232 KB int8 file was fixed tables (the cosine and sine tables of the
+   Fourier transform and the mel filter bank). They are plain math, so the model now generates them with a few built-in operations
+   when it loads (onnxruntime computes them once). Outputs match the stored tables to within 0.0002 in the logit.
+2. **The 54,000 learned weights are 4-bit integers** (two per byte, one scale per output channel). This network is very tolerant:
+   simulated 4-bit weights lose nothing in AUC, and even 3-bit lose only 0.0015.
+
+Measured on `eval-set-v2` (229 wake words, 60 minutes of held-out synthetic speech), same trigger (0.8 x 2):
+
+| file | size | AUC | caught | false alarms per hour |
+|---|---:|---:|---:|---:|
+| `kalki_int8.onnx` | 232 KB | 0.9945 | 97.4% | 27 |
+| `kalki_int4.onnx` | **36 KB** | 0.9945 | 97.4% | 28 |
+
+One difference: at the `strict` preset (0.9 x 3) the int4 model gives 95.6% caught and 20 false alarms per hour, against 95.2% and 12 for
+int8. It runs on onnxruntime 1.20 and newer in Python, Node and the browser (also the demo's pinned `onnxruntime-web` 1.20.1); older
+versions were not tested. The result is deterministic, and a test checks that the committed file is exactly what the script builds.
+
+**Microcontrollers and firmware.** ONNX Runtime does not run on small microcontrollers, so these files are not a drop-in for
+firmware; a port needs the network re-implemented in C. What it would have to do (counted from the model): the network is 3.5 million
+multiply-accumulates and the audio front end 25 million, because the export computes the Fourier transform as a convolution over the
+whole 1.5 s window every 80 ms. That is about 356 million MACs per second as exported, but only about 44 million per second for the
+network if the front end is instead computed once per new 10 ms frame with an FFT, as a firmware port would. Memory is small: about
+55 KB of int8 weights (27 KB as 4-bit) and under 8 KB for the largest layer's activations. None of this has been run on a microcontroller.
 
 ### What is quantization?
 
@@ -128,6 +159,7 @@ one is.
 fp32  ████████████████  32 bits per number   881 KB
 fp16  ████████          16 bits per number   444 KB
 int8  ████               8 bits per number   232 KB
+int4  ▌                  4 bits per number    36 KB   (and the fixed front-end tables are computed, not stored)
 ```
 
 **How each file was made** (`quantize.py` rebuilds all three from the trained network):
@@ -153,7 +185,7 @@ fast. What I *can't* tell you yet is how it does on real voices, because it was 
 | ✅ What the numbers support | ⚠️ What they don't |
 |---|---|
 | Best of four network designs I compared | Accuracy on real voices, accents and microphones is unknown |
-| 232 KB with no measurable accuracy loss | False alarms are higher than a polished commercial detector (see below) |
+| 36 KB with no measurable accuracy loss | False alarms are higher than a polished commercial detector (see below) |
 | Roughly 2% of one CPU core | No head-to-head against other wake word systems yet (different phrases, no shared test set) |
 | Retraining with more data and reverb improved it | The stream test has only 49 wake words, so per-hour figures are rough |
 
@@ -392,7 +424,7 @@ not help (they moved the operating point or made real-speech false alarms worse)
 ## 📁 Project layout
 
 ```
-models/            kalki_int8.onnx · kalki_fp16.onnx · kalki_fp32.onnx
+models/            kalki_int4.onnx · kalki_int8.onnx · kalki_fp16.onnx · kalki_fp32.onnx
 kalki_wakeword/    pip package: streaming detector + bundled model (detector.py is a shim)
 js/                npm package for the browser and Node.js (same detector and model)
 live.py            microphone demo for the terminal
@@ -402,6 +434,7 @@ mine_negatives.py  find false triggers in real audio  augment.py    background-n
 feedback_audio.py  score / install recordings from feedback issues
 gen_piper.py       second TTS source (Piper multi-speaker voices)
 eval_set.py        build / fetch the frozen evaluation set
+shrink_model.py    build the 36 KB int4 model from the fp32 one
 summarize_runs.py  mean/range of several retrain runs vs a reference group
 tune_trigger.py    threshold x hits sweep on the frozen stream
 model.py           the network                    quantize.py       make the fp16 and int8 files

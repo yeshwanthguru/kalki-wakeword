@@ -3,4 +3,4 @@
     from detector import WakeWordDetector      # still works from a checkout
     from kalki_wakeword import WakeWordDetector  # preferred (pip install .)
 """
-from kalki_wakeword.detector import DEFAULT_MODEL, HOP, SENSITIVITY, SR, WIN, Detection, WakeWordDetector  # noqa: F401
+from kalki_wakeword.detector import DEFAULT_MODEL, HOP, INT4_MODEL, SENSITIVITY, SR, WIN, Detection, WakeWordDetector  # noqa: F401

@@ -1,15 +1,16 @@
 {
   "name": "kalki-wakeword",
   "version": "0.2.0",
-  "description": "A 232 KB 'hey kalki' wake word model and streaming detector for the browser and Node.js.",
+  "description": "A 36 KB 'hey kalki' wake word model and streaming detector for the browser and Node.js.",
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
   "exports": {
     ".": { "types": "./index.d.ts", "default": "./index.js" },
-    "./model.onnx": "./models/kalki_int8.onnx"
+    "./model.onnx": "./models/kalki_int4.onnx",
+    "./model-int8.onnx": "./models/kalki_int8.onnx"
   },
-  "files": ["index.js", "index.d.ts", "models/kalki_int8.onnx", "README.md"],
+  "files": ["index.js", "index.d.ts", "models/kalki_int4.onnx", "models/kalki_int8.onnx", "README.md"],
   "scripts": { "test": "node --test test/*.test.js" },
   "keywords": ["wake-word", "onnx", "speech", "hey-kalki"],
   "license": "MIT",

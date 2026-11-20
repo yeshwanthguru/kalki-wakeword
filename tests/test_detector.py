@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CLIPS = ROOT / "docs" / "clips"
 SHOULD_TRIGGER = ["hey-kalki-1", "hey-kalki-2", "hey-kalki-3"]
 SHOULD_STAY_QUIET = ["hey-kali", "hey-google", "kalki-alone", "sentence"]
-MODELS = ["kalki_int8.onnx", "kalki_fp16.onnx", "kalki_fp32.onnx"]
+MODELS = ["kalki_int4.onnx", "kalki_int8.onnx", "kalki_fp16.onnx", "kalki_fp32.onnx"]
 
 
 def run(name, chunk=1280, model="kalki_int8.onnx", threshold=0.8):

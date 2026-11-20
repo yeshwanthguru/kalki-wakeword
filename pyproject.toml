@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kalki-wakeword"
 dynamic = ["version"]
-description = "A 232 KB 'hey kalki' wake word model and streaming detector. CPU only."
+description = "A 36 KB 'hey kalki' wake word model and streaming detector. CPU only."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"

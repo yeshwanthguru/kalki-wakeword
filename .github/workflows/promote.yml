@@ -53,6 +53,8 @@ jobs:
           cp new_models/kalki_int8.onnx docs/kalki_int8.onnx
           cp new_models/kalki_int8.onnx kalki_wakeword/models/kalki_int8.onnx   # the pip package's copy
           cp new_models/kalki_int8.onnx js/models/kalki_int8.onnx               # the npm package's copy
+          python shrink_model.py --src models/kalki_fp32.onnx --out models/kalki_int4.onnx   # the 36 KB model, rebuilt from the new fp32
+          for d in docs kalki_wakeword/models js/models; do cp models/kalki_int4.onnx "$d/kalki_int4.onnx"; done
       - name: Fetch the frozen evaluation set
         run: python eval_set.py fetch
       - name: Score the new models and record the baseline
@@ -67,7 +69,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add models docs/kalki_int8.onnx kalki_wakeword/models js/models docs/baseline.json
+          git add models docs/kalki_int8.onnx docs/kalki_int4.onnx kalki_wakeword/models js/models docs/baseline.json
           git commit -m "Promote the models from retrain run $RUN_ID"
           git push origin "$BRANCH"
           {

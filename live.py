@@ -1,18 +1,18 @@
 """Listen on the microphone and print when 'hey kalki' is heard.
 
-    python live.py [--threshold 0.8] [--model models/kalki_int8.onnx]
+    python live.py [--threshold 0.8] [--model models/kalki_int4.onnx]
 """
 import argparse
 import time
 
 import sounddevice as sd
 
-from detector import DEFAULT_MODEL, HOP, SR, WakeWordDetector
+from detector import HOP, SR, WakeWordDetector
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default=str(DEFAULT_MODEL))
+    ap.add_argument("--model", default=None, help="an .onnx file (default: the bundled int4 model, int8 if it cannot be loaded)")
     ap.add_argument("--threshold", type=float, default=0.8)
     ap.add_argument("--hits", type=int, default=2, help="consecutive windows above threshold")
     a = ap.parse_args()

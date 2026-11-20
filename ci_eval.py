@@ -16,7 +16,8 @@ from benchmark import HERE, SR, WIN, build_stream, roc_metrics, splits, trigger_
 from quantize import probs
 from train import Sampler
 
-MODELS = {"fp32": HERE / "models" / "kalki_fp32.onnx", "int8": HERE / "models" / "kalki_int8.onnx"}
+MODELS = {"fp32": HERE / "models" / "kalki_fp32.onnx", "int8": HERE / "models" / "kalki_int8.onnx",
+          "int4": HERE / "models" / "kalki_int4.onnx"}
 BASELINE = HERE / "docs" / "baseline.json"
 
 

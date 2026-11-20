@@ -97,3 +97,30 @@ def test_javascript_presets_match_python():
     body = re.search(r"export const SENSITIVITY = \{(.*?)\};", js, re.S).group(1)
     parsed = {k: tuple(json.loads(v)) for k, v in re.findall(r"(\w+):\s*(\[[^\]]*\])", body)}
     assert parsed == {k: tuple(v) for k, v in SENSITIVITY.items()}
+
+
+def test_all_model_copies_are_identical_and_the_small_one_is_small():
+    for name in ("kalki_int4.onnx", "kalki_int8.onnx"):
+        reference = (ROOT / "models" / name).read_bytes()
+        for copy in (ROOT / "kalki_wakeword" / "models", ROOT / "js" / "models", ROOT / "docs"):
+            assert (copy / name).read_bytes() == reference, f"{copy.name}/{name} differs from models/{name}"
+    assert (ROOT / "models" / "kalki_int4.onnx").stat().st_size < 50_000          # the 50 KB goal
+
+
+def test_default_model_is_the_36kb_one_and_falls_back_to_int8(monkeypatch, recwarn):
+    import onnxruntime as ort
+    from kalki_wakeword import DEFAULT_MODEL, INT4_MODEL, WakeWordDetector
+    assert WakeWordDetector().model_path == INT4_MODEL
+    assert WakeWordDetector(DEFAULT_MODEL).model_path == DEFAULT_MODEL            # an explicit path is used as given
+    real = ort.InferenceSession
+
+    def old_runtime(path, *a, **k):          # an onnxruntime that cannot read 4-bit weights
+        if str(path).endswith("kalki_int4.onnx"):
+            raise ort.capi.onnxruntime_pybind11_state.Fail("[ONNXRuntimeError] : 1 : FAIL : unsupported type int4")
+        return real(path, *a, **k)
+    monkeypatch.setattr(ort, "InferenceSession", old_runtime)
+    with pytest.warns(RuntimeWarning, match="int8"):
+        det = WakeWordDetector()
+    assert det.model_path == DEFAULT_MODEL
+    x, _ = __import__("soundfile").read(CLIPS / "hey-kalki-1.wav", dtype="float32")
+    assert len(det.push(x) + det.push(np.zeros(4000, np.float32))) == 1          # and it still works
