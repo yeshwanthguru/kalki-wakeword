@@ -106,15 +106,15 @@ size is not.
 
 | File | Precision | Size | Wake words caught @0.5 | AUC | Caught / false alarms per hour (0.8 x 2) | CPU / window |
 |------|-----------|-----:|-----------------------:|----:|------------------------------------------:|-------------:|
-| [`kalki_int4.onnx`](models/kalki_int4.onnx) | 4-bit, front end computed at load | **36 KB** (-96%) | 95.3% | 0.9945 | 97.4% / 28 | ~0.7 ms |
-| [`kalki_int8.onnx`](models/kalki_int8.onnx) | 8-bit | 232 KB (-74%) | 94.2% | 0.9945 | 97.4% / 27 | ~0.8 ms |
-| [`kalki_fp16.onnx`](models/kalki_fp16.onnx) | 16-bit | 444 KB (-50%) | 94.2% | 0.9945 | 97.4% / 27 | ~0.8 ms |
-| [`kalki_fp32.onnx`](models/kalki_fp32.onnx) | 32-bit | 881 KB (original) | 94.2% | 0.9945 | 97.4% / 27 | ~0.8 ms |
+| [`kalki_int4.onnx`](models/kalki_int4.onnx) | 4-bit, front end computed at load | **36 KB** (-96%) | 95.3% | 0.9945 | 97.4% / 28 | ~1 ms |
+| [`kalki_int8.onnx`](models/kalki_int8.onnx) | 8-bit | 232 KB (-74%) | 94.2% | 0.9945 | 97.4% / 27 | ~1 ms |
+| [`kalki_fp16.onnx`](models/kalki_fp16.onnx) | 16-bit | 444 KB (-50%) | 94.2% | 0.9945 | 97.4% / 27 | ~1 ms |
+| [`kalki_fp32.onnx`](models/kalki_fp32.onnx) | 32-bit | 881 KB (original) | 94.2% | 0.9945 | 97.4% / 27 | ~1 ms |
 
 Measured by `make_size_chart.py` on `eval-set-v2` (held-out synthetic voices): the same 4,000 test windows for all four files, plus a
 60-minute stream at the default trigger. The 4-bit file ranks windows the same way (same AUC) and catches about 1 point more at
 threshold 0.5, with slightly more false positives (2.1% against 2.0%); on the stream the default trigger gives the same result.
-Speeds are one thread on a cloud CPU core and vary with machine load, so treat them as "about the same", not as a ranking.
+Speeds are one thread on a cloud CPU core (0.7 to 1.1 ms across two runs, depending on machine load), so treat them as "about the same", not as a ranking.
 
 **Which one?**
 
