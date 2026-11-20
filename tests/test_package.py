@@ -58,3 +58,42 @@ def test_javascript_package_has_the_same_model_and_version():
     import json
     assert (ROOT / "js" / "models" / "kalki_int8.onnx").read_bytes() == (ROOT / "models" / "kalki_int8.onnx").read_bytes()
     assert json.loads((ROOT / "js" / "package.json").read_text())["version"] == kalki_wakeword.__version__
+
+
+def test_sensitivity_presets_and_overrides():
+    from kalki_wakeword import SENSITIVITY, WakeWordDetector
+    assert SENSITIVITY == {"sensitive": (0.6, 2), "balanced": (0.8, 2), "strict": (0.9, 3)}
+    d = WakeWordDetector()                                   # unchanged default: 0.8 and 2
+    assert (d.threshold, d.hits) == (0.8, 2)
+    s = WakeWordDetector(sensitivity="strict")
+    assert (s.threshold, s.hits) == (0.9, 3)
+    o = WakeWordDetector(sensitivity="strict", threshold=0.5)   # an explicit value overrides only that part
+    assert (o.threshold, o.hits) == (0.5, 3)
+    assert (WakeWordDetector(threshold=0.7, hits=4).threshold, WakeWordDetector(threshold=0.7, hits=4).hits) == (0.7, 4)
+    with pytest.raises(ValueError, match="sensitivity"):
+        WakeWordDetector(sensitivity="paranoid")
+
+
+@pytest.mark.parametrize("sensitivity", ["sensitive", "balanced", "strict"])
+def test_every_preset_still_detects_the_demo_clips(sensitivity):
+    import soundfile as sf
+    from kalki_wakeword import WakeWordDetector
+    for name, expected in [("hey-kalki-1", 1), ("hey-kalki-2", 1), ("hey-kalki-3", 1), ("hey-google", 0), ("sentence", 0)]:
+        x, _ = sf.read(CLIPS / f"{name}.wav", dtype="float32")
+        det = WakeWordDetector(sensitivity=sensitivity)
+        assert len(det.push(x) + det.push(np.zeros(4000, np.float32))) == expected, (sensitivity, name)
+
+
+def test_cli_sensitivity_flag(capsys):
+    assert cli.main([str(CLIPS / "hey-kalki-1.wav"), "--sensitivity", "strict"]) == 0
+    assert cli.main([str(CLIPS / "hey-kalki-1.wav"), "--hits", "200"]) == 1          # an override that can never be met
+
+
+def test_javascript_presets_match_python():
+    import json
+    import re
+    from kalki_wakeword import SENSITIVITY
+    js = (ROOT / "js" / "index.js").read_text()
+    body = re.search(r"export const SENSITIVITY = \{(.*?)\};", js, re.S).group(1)
+    parsed = {k: tuple(json.loads(v)) for k, v in re.findall(r"(\w+):\s*(\[[^\]]*\])", body)}
+    assert parsed == {k: tuple(v) for k, v in SENSITIVITY.items()}

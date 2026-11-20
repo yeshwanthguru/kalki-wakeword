@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import * as ort from "onnxruntime-node";
-import { HOP, SR, WakeWordDetector, loadModelBytes } from "../index.js";
+import { HOP, SENSITIVITY, SR, WakeWordDetector, loadModelBytes } from "../index.js";
 
 const CLIPS = new URL("../../docs/clips/", import.meta.url);
 
@@ -75,4 +75,17 @@ test("loads the model from bytes and reports a missing file clearly", async () =
   const det = await WakeWordDetector.create(ort, { model: bytes });
   assert.equal((await det.push(new Float32Array(HOP))).length, 0);
   await assert.rejects(loadModelBytes(new URL("file:///no/such/model.onnx")));
+});
+
+test("sensitivity presets: the default is balanced, overrides win, and every preset still detects", async () => {
+  assert.deepEqual(SENSITIVITY, { sensitive: [0.6, 2], balanced: [0.8, 2], strict: [0.9, 3] });
+  const d = await WakeWordDetector.create(ort);
+  assert.deepEqual([d.threshold, d.hits], [0.8, 2]);
+  const s = await WakeWordDetector.create(ort, { sensitivity: "strict", threshold: 0.5 });
+  assert.deepEqual([s.threshold, s.hits], [0.5, 3]);
+  await assert.rejects(() => WakeWordDetector.create(ort, { sensitivity: "paranoid" }), /sensitivity must be one of/);
+  for (const sensitivity of Object.keys(SENSITIVITY)) {
+    assert.equal((await run("hey-kalki-1", HOP, { sensitivity })).length, 1, sensitivity);
+    assert.equal((await run("hey-google", HOP, { sensitivity })).length, 0, sensitivity);
+  }
 });

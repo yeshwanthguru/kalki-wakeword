@@ -360,6 +360,26 @@ setting, marks the default (0.8 x 2) and recommends the fewest false alarms with
 committed model gives 97% / 27 false alarms per hour at the default, 97% / 22 at 3 hits, and 95% / 13 at 3 hits and 0.9 (each extra
 hit adds 80 ms). That is one synthetic stream, so confirm with `score_real.py` on real recordings before changing a default.
 
+**Sensitivity presets.** `WakeWordDetector(sensitivity="sensitive" | "balanced" | "strict")` (also `--sensitivity` in the CLI and
+`{ sensitivity }` in the JavaScript package) picks the probability threshold and the number of consecutive windows that must exceed it.
+Passing `threshold=` or `hits=` overrides that part. The default, `balanced`, is unchanged (0.8 x 2). Measured for the shipped model on
+`eval-set-v2` (229 wake words, 60 minutes of held-out synthetic speech):
+
+| preset | threshold x hits | wake words caught | false alarms per hour |
+|---|---|---:|---:|
+| sensitive | 0.6 x 2 | 98% | 44 |
+| balanced (default) | 0.8 x 2 | 97% | 27 |
+| strict | 0.9 x 3 | 95% | 13 |
+
+Each extra hit adds 80 ms of delay. These are starting points for a synthetic test stream: real microphones and rooms differ, so check
+them with `score_real.py` on your own recordings.
+
+**Smarter trigger rules do not help.** I compared the current rule (the minimum over the last k windows must exceed the threshold)
+with a moving average, a median, an average of the logits and hysteresis (arm high, hold low) on the same stream. Among settings that
+catch at least 96.5% of wake words, all of them land at 20 to 22 false alarms per hour, which is within noise; at about 95% recall the
+simple rule is as good as any (9 per hour). The false alarms come from the model's scores, not from the trigger rule, so the lever
+is training data (see above), not a cleverer trigger.
+
 **Replacing the shipped model.** Run the `promote` workflow with the id of a successful `retrain` run on `main`: it opens a pull
 request that copies that run's models into `models/` and `docs/kalki_int8.onnx`, records the new `docs/baseline.json` on the frozen
 set and adds the score and trigger tables. Nothing is merged for you.

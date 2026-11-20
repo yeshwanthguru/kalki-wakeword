@@ -16,6 +16,7 @@ import numpy as np
 
 import eval_set
 from benchmark import SR, WIN, build_stream, trigger_stats
+from kalki_wakeword import SENSITIVITY
 from quantize import probs
 
 HERE = Path(__file__).parent
@@ -45,10 +46,13 @@ def table(grid, thresholds=THRESHOLDS, hits=HITS, mark=DEFAULT, pick=None):
         for t in thresholds:
             d, fa = grid[(h, t)]
             cell = f"{d:.0%} / {fa:.0f}"
+            presets = [name for name, (pt, ph) in SENSITIVITY.items() if (ph, pt) == (h, t) and (h, t) != mark]
             if (h, t) == pick:
                 cell = f"**{cell}** (recommended)"
             elif (h, t) == mark:
                 cell += " (default)"
+            if presets:
+                cell += f" ({', '.join(presets)} preset)"
             cells.append(cell)
         lines.append(f"| {h} | " + " | ".join(cells) + " |")
     return "\n".join(lines)

@@ -17,6 +17,14 @@ HOP = 1280    # scored every 80 ms
 DEFAULT_MODEL = Path(__file__).parent / "models" / "kalki_int8.onnx"   # kept identical to models/kalki_int8.onnx (tests check it)
 
 
+# Named trade-offs between missed wake words and false alarms: (probability threshold, consecutive windows that must exceed it).
+# Measured for the shipped model on eval-set-v2 (229 wake words, 60 min of held-out synthetic speech; see tune_trigger.py):
+#   sensitive  (0.6, 2): about 98% caught, 44 false alarms/hour     balanced (0.8, 2): about 97% caught, 27/hour (the default)
+#   strict     (0.9, 3): about 95% caught, 13 false alarms/hour
+# Real microphones and rooms differ, so treat these as a starting point and confirm with score_real.py on your own recordings.
+SENSITIVITY = {"sensitive": (0.6, 2), "balanced": (0.8, 2), "strict": (0.9, 3)}
+
+
 @dataclass
 class Detection:
     time: float   # seconds of audio fed so far when it fired
@@ -24,7 +32,14 @@ class Detection:
 
 
 class WakeWordDetector:
-    def __init__(self, model_path=DEFAULT_MODEL, threshold=0.8, hits=2, cooldown=1.5):
+    def __init__(self, model_path=DEFAULT_MODEL, threshold=None, hits=None, cooldown=1.5, sensitivity="balanced"):
+        """sensitivity: 'sensitive', 'balanced' (default) or 'strict' picks the threshold and hits; passing threshold or hits
+        yourself overrides that part of the preset."""
+        if sensitivity not in SENSITIVITY:
+            raise ValueError(f"sensitivity must be one of {sorted(SENSITIVITY)}, got {sensitivity!r}")
+        preset_threshold, preset_hits = SENSITIVITY[sensitivity]
+        threshold = preset_threshold if threshold is None else threshold
+        hits = preset_hits if hits is None else hits
         so = ort.SessionOptions()
         so.intra_op_num_threads = 1
         self.sess = ort.InferenceSession(str(model_path), so, providers=["CPUExecutionProvider"])
