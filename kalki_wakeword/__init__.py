@@ -9,5 +9,5 @@ Check an install on a recording:  python -m kalki_wakeword clip.wav
 """
 from .detector import DEFAULT_MODEL, HOP, INT4_MODEL, SENSITIVITY, SR, WIN, Detection, WakeWordDetector
 
-__version__ = "0.2.0"
+__version__ = "1.1.0"
 __all__ = ["WakeWordDetector", "Detection", "DEFAULT_MODEL", "INT4_MODEL", "SENSITIVITY", "SR", "WIN", "HOP", "__version__"]

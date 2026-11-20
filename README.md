@@ -5,7 +5,7 @@
 ### A tiny wake word model: **36 KB**, runs on a plain CPU or in a browser tab, trained with **zero recordings**.
 
 [![tests](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml/badge.svg)](https://github.com/yeshwanthguru/kalki-wakeword/actions/workflows/test.yml)
-![model size](https://img.shields.io/badge/model-232%20KB-0f7b5f)
+![model size](https://img.shields.io/badge/model-36%20KB-0f7b5f)
 [![downloads](https://img.shields.io/github/downloads/yeshwanthguru/kalki-wakeword/total?label=downloads&color=0f7b5f)](https://github.com/yeshwanthguru/kalki-wakeword/releases)
 ![format](https://img.shields.io/badge/format-ONNX-5c6bc0)
 ![runs on](https://img.shields.io/badge/runs%20on-CPU%20%7C%20browser-0f7b5f)
@@ -65,7 +65,7 @@ python live.py              # then say "hey kalki"
 **In your own code** (a pip package, CPU only, 215 KB with the model inside):
 
 ```bash
-pip install git+https://github.com/yeshwanthguru/kalki-wakeword      # or: pip install kalki_wakeword-<version>-py3-none-any.whl (from a release)
+pip install git+https://github.com/yeshwanthguru/kalki-wakeword      # or: pip install kalki_wakeword-<version>-py3-none-any.whl (attached to releases from v1.1.0)
 python -m kalki_wakeword clip.wav                                     # check the install on a 16 kHz 16-bit wav
 ```
 
@@ -78,7 +78,7 @@ for hit in det.push(samples):               # float32 mono 16 kHz audio, any chu
 ```
 
 The package depends only on `numpy` and `onnxruntime`. It is not on PyPI yet (publishing needs a PyPI account and token); the
-git URL and the wheel attached to each release work today. Inside a checkout, `from detector import WakeWordDetector` still
+git URL and the wheel attached to each release from v1.1.0 on work. Inside a checkout, `from detector import WakeWordDetector` still
 works. The package carries its own copy of the int8 model (`kalki_wakeword/models/`), which a test keeps identical to `models/`.
 Any language with an ONNX runtime can use the model directly: input is 24,000 float samples (1.5 s at 16 kHz), output is one logit.
 
@@ -92,7 +92,7 @@ const det = await WakeWordDetector.create(ort, { threshold: 0.8 });
 for (const hit of await det.push(float32Samples)) console.log(`heard it at ${hit.time.toFixed(2)}s`);
 ```
 
-Install it from the `.tgz` attached to each release (`npm install ./kalki-wakeword-<version>.tgz`) or run `npm pack` in `js/`. It is not on
+Install it from the `.tgz` attached to each release from v1.1.0 on (`npm install ./kalki-wakeword-<version>.tgz`) or run `npm pack` in `js/`. It is not on
 the npm registry yet (that needs an npm account and token). The tests check that Node and a real browser (headless Chromium with
 `onnxruntime-web`) give the same detection times and probabilities as the Python package on the demo clips.
 

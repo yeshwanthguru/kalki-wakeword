@@ -1,10 +1,16 @@
 name: release
 
-# Push a tag like v0.3.0 (from a commit on main) to publish a GitHub Release with the model files,
-# checksums and the scores they were measured at. A release fails if the models regress vs docs/baseline.json.
+# Push a tag like v1.2.0 (from a commit on main), or run this workflow by hand on main with the tag as input, to publish a
+# GitHub Release with the model files, the Python and npm packages, checksums and the scores they were measured at.
+# The tag must match the package versions, and a release fails if the models regress vs docs/baseline.json.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create from the current commit of the chosen branch (main), e.g. v1.2.0; must equal v + the package version"
+        required: true
 
 permissions:
   contents: write
@@ -13,14 +19,24 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Check the tag
+        run: |
+          case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::tag '$TAG' must look like v1.2.3"; exit 1;; esac
+          case "$TAG" in *[!0-9v.]*) echo "::error::tag '$TAG' may only contain digits, dots and a leading v"; exit 1;; esac
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::a release for $TAG already exists"; exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Tag must be on main
         run: |
           git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::tag $GITHUB_REF_NAME is not on main"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::tag $TAG is not on main"; exit 1; }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -44,13 +60,13 @@ jobs:
         run: python ci_eval.py
       - name: Build the Python package
         run: |
-          # the tag must name the package version (tag v0.2.0 <-> kalki_wakeword.__version__ 0.2.0)
+          # the tag must name the package version (tag v1.1.0 <-> kalki_wakeword.__version__ 1.1.0)
           V="$(python - <<'PY'
           import re
           print(re.search(r'__version__ = "([^"]+)"', open("kalki_wakeword/__init__.py").read()).group(1))
           PY
           )"
-          [ "$GITHUB_REF_NAME" = "v$V" ] || { echo "::error::tag $GITHUB_REF_NAME does not match package version $V"; exit 1; }
+          [ "$TAG" = "v$V" ] || { echo "::error::tag $TAG does not match package version $V"; exit 1; }
           JV="$(node -p "require('./js/package.json').version")"
           [ "$JV" = "$V" ] || { echo "::error::js/package.json version $JV does not match the Python package version $V"; exit 1; }
           pip install build
@@ -63,7 +79,7 @@ jobs:
           (cd dist && sha256sum *.onnx *.whl *.tar.gz *.tgz > SHA256SUMS.txt)
           kb() { echo $(( $(stat -c%s "$1") / 1024 )); }
           {
-            echo "Wake word models for \`$GITHUB_REF_NAME\` (commit \`${GITHUB_SHA::7}\`)."
+            echo "Wake word models for \`$TAG\` (commit \`${GITHUB_SHA::7}\`)."
             echo
             echo "| file | size | use it for |"
             echo "|---|---:|---|"
@@ -83,8 +99,7 @@ jobs:
             echo "Verify downloads with \`sha256sum -c SHA256SUMS.txt\`."
           } > RELEASE_NOTES.md
       - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "$GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --verify-tag
+          # a pushed tag already exists; a manual run creates the tag at this commit
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then WHERE="--verify-tag"; else WHERE="--target $GITHUB_SHA"; fi
+          gh release create "$TAG" dist/* --title "$TAG" --notes-file RELEASE_NOTES.md $WHERE
