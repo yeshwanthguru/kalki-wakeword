@@ -364,6 +364,11 @@ hit adds 80 ms). That is one synthetic stream, so confirm with `score_real.py` o
 request that copies that run's models into `models/` and `docs/kalki_int8.onnx`, records the new `docs/baseline.json` on the frozen
 set and adds the score and trigger tables. Nothing is merged for you.
 
+**How much synthetic data.** On `eval-set-v2` (11 held-out voices, 60-minute stream), 40 clips per voice per class beat 12 on three
+seeds (AUC 0.9944 vs 0.9931 on average, false alarms 29 to 40 vs 47 to 56 per hour); 100 per voice was not clearly better than 40.
+`gen_tts.py` and the `retrain` workflow now default to 40. Extra mining rounds, SpecAugment with weight averaging and Piper voices did
+not help (they moved the operating point or made real-speech false alarms worse).
+
 ## 📁 Project layout
 
 ```
