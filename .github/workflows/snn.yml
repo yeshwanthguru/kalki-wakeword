@@ -1,0 +1,136 @@
+name: snn
+
+# Trains the spiking ("neuromorphic") model, scores it on the same held-out voices / frozen eval set as the PR gate,
+# and prints its operation counts next to the committed GRU model. Nothing is committed or promoted from here.
+on:
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: Training steps
+        default: "6000"
+      phrase:
+        description: Wake phrase (empty = built-in "hey kalki" data)
+        default: ""
+      per_voice:
+        description: Clips per voice per class for gen_tts.py
+        default: "40"
+      piper_voices:
+        description: "Space-separated Piper model names for a second TTS source (empty = off)"
+        default: ""
+      piper_speakers:
+        description: Speakers to use per multi-speaker Piper model
+        default: "30"
+      train_args:
+        description: "Extra snn.py train flags, e.g. --specaugment --rate-penalty 0.5 (empty = defaults)"
+        default: ""
+      mine_rounds:
+        description: "1 = mine hard negatives with the committed model first (same data recipe as retrain.yml), 0 = off"
+        default: "1"
+      corpus_url:
+        description: tar.gz of audio WITHOUT the wake word to mine
+        default: "https://www.openslr.org/resources/12/dev-clean.tar.gz"
+      real_clips_url:
+        description: Optional zip of consented real recordings
+        default: ""
+      noise_url:
+        description: Optional tar.gz or zip of real background-noise wavs for augmentation
+        default: ""
+
+jobs:
+  snn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies (CPU torch)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r <(grep -viE '^(torch|sounddevice)' requirements.txt)
+      # Synthesized clips are cached so reruns do not hit the (unofficial) edge-tts service again.
+      # Cache keys cannot contain commas or spaces, so build a clean one from the inputs.
+      - name: Cache key
+        id: key
+        env:
+          PHRASE: ${{ inputs.phrase }}
+          PER_VOICE: ${{ inputs.per_voice }}
+          PIPER: ${{ inputs.piper_voices }}
+          SPEAKERS: ${{ inputs.piper_speakers }}
+        run: |
+          clean() { printf '%s' "$1" | tr -c 'A-Za-z0-9.-' '_'; }
+          k="$(clean "$PHRASE")-$PER_VOICE"
+          [ -n "$PIPER" ] && k="$k-piper-$(clean "$PIPER")-$SPEAKERS"
+          echo "k=$k" >> "$GITHUB_OUTPUT"
+      - name: Restore TTS clips
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: tts-${{ hashFiles('gen_tts.py', 'gen_piper.py') }}-${{ steps.key.outputs.k }}
+      - name: Generate clips
+        env:
+          PHRASE: ${{ inputs.phrase }}
+          PER_VOICE: ${{ inputs.per_voice }}
+        run: python gen_tts.py --per-voice "$PER_VOICE" ${PHRASE:+--phrase "$PHRASE"}
+      - name: Fetch the frozen evaluation set (if published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python eval_set.py fetch
+      - name: Second TTS source (Piper)
+        if: inputs.piper_voices != ''
+        env:
+          PIPER: ${{ inputs.piper_voices }}
+          SPEAKERS: ${{ inputs.piper_speakers }}
+          PER_VOICE: ${{ inputs.per_voice }}
+          PHRASE: ${{ inputs.phrase }}
+        run: |
+          pip install piper-tts
+          python -m piper.download_voices --download-dir piper_models $PIPER
+          python gen_piper.py --models-dir piper_models --voices $PIPER --speakers "$SPEAKERS" --per-voice "$PER_VOICE" ${PHRASE:+--phrase "$PHRASE"}
+      - name: Drop mined clips and noise left in the cache
+        run: rm -rf data/noise data/negative/mined_* data/positive/pos_real_* data/negative/neg_real_*
+      - name: Fetch real recordings
+        if: inputs.real_clips_url != ''
+        env:
+          REAL_URL: ${{ inputs.real_clips_url }}
+        run: |
+          curl -fL --retry 3 -o real_clips.zip "$REAL_URL"
+          python feedback_audio.py install --zip real_clips.zip
+      - name: Fetch real noise for augmentation
+        if: inputs.noise_url != ''
+        env:
+          NOISE_URL: ${{ inputs.noise_url }}
+        run: |
+          mkdir -p data/noise noise_dl
+          curl -fL --retry 3 -o noise_dl/pack "$NOISE_URL"
+          (cd noise_dl && (tar xf pack 2>/dev/null || unzip -q pack))
+          find noise_dl -name '*.wav' -exec cp {} data/noise/ \;
+      - name: Mine hard negatives with the committed model
+        if: inputs.mine_rounds != '0'
+        env:
+          CORPUS_URL: ${{ inputs.corpus_url }}
+        run: |
+          mkdir -p corpus
+          curl -fL --retry 3 "$CORPUS_URL" | tar xz -C corpus
+          python mine_negatives.py --audio corpus --tag r1 --report mining_r1.json
+      - name: Train the spiking model
+        env:
+          STEPS: ${{ inputs.steps }}
+          EXTRA: ${{ inputs.train_args }}
+        run: python snn.py train --steps "$STEPS" $EXTRA
+      - name: Score it
+        run: |
+          python snn.py eval
+          python snn.py export
+          { echo "### Spiking model vs committed int4 GRU"; echo; cat snn_report.md; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snn-report
+          path: |
+            snn_report.json
+            snn_report.md
+            out/kalki_snn.pt
+            out/kalki_snn.onnx
+          if-no-files-found: error
