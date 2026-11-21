@@ -1,11 +1,12 @@
 import numpy as np
 import onnxruntime as ort
 import pytest
-import torch
-import torch.nn.functional as F
 
-import snn
-from model import WIN
+torch = pytest.importorskip("torch")   # the detector CI job installs no torch
+import torch.nn.functional as F  # noqa: E402
+
+import snn  # noqa: E402
+from model import WIN  # noqa: E402
 
 
 def _audio(n, seed=0):
